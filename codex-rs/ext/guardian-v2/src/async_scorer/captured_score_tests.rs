@@ -90,12 +90,7 @@ async fn captured_score_cannot_authorize_another_model_or_a_later_return_to_sol(
         sampled_at: Some((SystemTime::now() + Duration::from_secs(1)).into()),
         ..score
     };
-    assert!(progress.publish_for_generation(
-        new_generation,
-        fresh,
-        authority,
-        /*index*/ 2,
-    ));
+    assert!(progress.publish_for_generation(new_generation, fresh, authority, /*index*/ 2,));
     assert_eq!(
         cached_approval_for_model(&fixture.registry, store, sol).await,
         Some(ReviewDecision::Approved)

@@ -788,8 +788,7 @@ async fn review_guardian_mcp_elicitation(
         }
     });
     let captured_context = if let Some(call_id) = call_id {
-        session
-            .mcp_tool_review_context(&turn_context.sub_id, call_id, &request.server_name)
+        session.mcp_tool_review_context(&turn_context.sub_id, call_id, &request.server_name)
     } else {
         None
     };

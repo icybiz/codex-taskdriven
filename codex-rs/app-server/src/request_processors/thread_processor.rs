@@ -4183,35 +4183,36 @@ impl ThreadRequestProcessor {
                 }
 
                 let thread_originator = config_snapshot.originator.clone();
-                let response = ThreadResumeResponse {
-                    active_model: codex_thread.active_turn_model().await.map(
-                        |(turn_id, model)| codex_app_server_protocol::ActiveTurnModel {
-                            turn_id,
-                            model: model.model,
-                            effort: model.effort,
-                            sequence: model.sequence,
-                        },
-                    ),
-                    model_routing: config_snapshot.collaboration_mode.settings.model_routing,
-                    thread,
-                    disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
-                    model: session_configured.model,
-                    model_provider: session_configured.model_provider_id,
-                    service_tier: session_configured.service_tier,
-                    cwd: session_configured.cwd,
-                    runtime_workspace_roots: config_snapshot.workspace_roots,
-                    instruction_sources,
-                    approval_policy: session_configured.approval_policy.into(),
-                    approvals_reviewer: session_configured.approvals_reviewer.into(),
-                    sandbox,
-                    active_permission_profile,
-                    reasoning_effort: session_configured.reasoning_effort,
-                    collaboration_mode: Some(config_snapshot.collaboration_mode),
-                    multi_agent_mode: MultiAgentMode::ExplicitRequestOnly,
-                    initial_turns_page,
-                    turns_backwards_cursor,
-                    items_backwards_cursor,
-                };
+                let response =
+                    ThreadResumeResponse {
+                        active_model: codex_thread.active_turn_model().await.map(
+                            |(turn_id, model)| codex_app_server_protocol::ActiveTurnModel {
+                                turn_id,
+                                model: model.model,
+                                effort: model.effort,
+                                sequence: model.sequence,
+                            },
+                        ),
+                        model_routing: config_snapshot.collaboration_mode.settings.model_routing,
+                        thread,
+                        disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
+                        model: session_configured.model,
+                        model_provider: session_configured.model_provider_id,
+                        service_tier: session_configured.service_tier,
+                        cwd: session_configured.cwd,
+                        runtime_workspace_roots: config_snapshot.workspace_roots,
+                        instruction_sources,
+                        approval_policy: session_configured.approval_policy.into(),
+                        approvals_reviewer: session_configured.approvals_reviewer.into(),
+                        sandbox,
+                        active_permission_profile,
+                        reasoning_effort: session_configured.reasoning_effort,
+                        collaboration_mode: Some(config_snapshot.collaboration_mode),
+                        multi_agent_mode: MultiAgentMode::ExplicitRequestOnly,
+                        initial_turns_page,
+                        turns_backwards_cursor,
+                        items_backwards_cursor,
+                    };
 
                 let connection_id = request_id.connection_id;
                 self.outgoing

@@ -79,12 +79,13 @@ impl GuardianV2ScoreProgress {
             .state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let matches = state
-            .configuration
-            .as_ref()
-            .is_some_and(|(captured_model, captured_config)| {
-                captured_model == model && captured_config == config
-            });
+        let matches =
+            state
+                .configuration
+                .as_ref()
+                .is_some_and(|(captured_model, captured_config)| {
+                    captured_model == model && captured_config == config
+                });
         if !matches {
             state.configuration = Some((model.clone(), config.clone()));
             state.generation = state

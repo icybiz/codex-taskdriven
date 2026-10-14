@@ -7585,7 +7585,7 @@
           "$ref": "#/definitions/ModelRouting"
         }
       ],
-      "description": "Work-phase routing selected independently of the concrete model."
+      "description": "Whether model selection is fixed or routed by the TaskDriven extension."
     },
     "model_verbosity": {
       "allOf": [
