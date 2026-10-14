@@ -61,6 +61,7 @@ pub(super) struct Classification {
     pub(super) sampler: Arc<LunaSampler>,
     pub(super) guardian_config: GuardianV2Config,
     pub(super) score_progress: Arc<GuardianV2ScoreProgress>,
+    pub(super) score_generation: u64,
     pub(super) parent_model: Option<Arc<ModelInfo>>,
     pub(super) metrics: Option<Arc<dyn ExtensionMetrics>>,
     pub(super) analytics: Option<Arc<AnalyticsEventsClient>>,
@@ -112,6 +113,7 @@ impl Classification {
             sampler,
             guardian_config,
             score_progress,
+            score_generation,
             parent_model,
             metrics,
             analytics,
@@ -241,7 +243,7 @@ impl Classification {
         let mut transcript = match transcript {
             Ok(transcript) => transcript,
             Err(error) => {
-                score_progress.fail_closed(sampled_at);
+                score_progress.fail_closed_for_generation(score_generation, sampled_at);
                 record_classification(
                     metrics.as_deref(),
                     context_mode,
@@ -359,8 +361,12 @@ impl Classification {
             {
                 return Ok(ClassificationOutcome::Superseded);
             }
-            let accepted =
-                score_progress.publish(score.clone(), score_authorization, tool_call_index);
+            let accepted = score_progress.publish_for_generation(
+                score_generation,
+                score.clone(),
+                score_authorization,
+                tool_call_index,
+            );
             tracing::info!(
                 %thread_id,
                 %turn_id,
@@ -395,7 +401,7 @@ impl Classification {
         }
         .await;
         if result.is_err() {
-            score_progress.fail_closed(sampled_at);
+            score_progress.fail_closed_for_generation(score_generation, sampled_at);
         }
         let duration = classification_finished_at
             .map(|finished_at: Instant| finished_at.duration_since(classification_started_at))

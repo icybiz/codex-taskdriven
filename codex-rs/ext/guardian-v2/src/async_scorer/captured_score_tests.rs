@@ -37,23 +37,22 @@ async fn captured_score_cannot_authorize_another_model_or_a_later_return_to_sol(
         sol_config.classifier_instructions,
         astra_config.classifier_instructions
     );
-    let authority = super::super::ScoreAuthorization::current(&fixture.test.codex).await;
-    let old_generation = progress
-        .authorization
-        .lock()
-        .unwrap()
-        .begin(sol, &sol_config);
+    let authority = super::super::ScoreAuthorization {
+        model: Some(Arc::new(sol.clone())),
+        ..super::super::ScoreAuthorization::current(&fixture.test.codex, &Default::default()).await
+    };
+    let old_generation = progress.begin(sol, &sol_config);
     let score = SecurityRiskScore {
         scores: BTreeMap::from([("action_risk".to_owned(), 0.0)]),
         call_id: Some("old-sol-call".to_string()),
         action: None,
         sampled_at: Some(SystemTime::now().into()),
     };
-    assert!(progress.authorization.lock().unwrap().publish(
+    assert!(progress.publish_for_generation(
         old_generation,
+        score.clone(),
         authority.clone(),
-        store,
-        &score
+        /*index*/ 1,
     ));
     assert_eq!(
         cached_approval_for_model(&fixture.registry, store, sol).await,
@@ -68,31 +67,18 @@ async fn captured_score_cannot_authorize_another_model_or_a_later_return_to_sol(
     let (release, complete) = tokio::sync::oneshot::channel();
     let progress_for_completion = Arc::clone(&progress);
     let delayed_score = score.clone();
-    let thread = Arc::clone(&fixture.test.codex);
     let delayed_authority = authority.clone();
     let delayed = tokio::spawn(async move {
         complete.await.unwrap();
-        progress_for_completion
-            .authorization
-            .lock()
-            .unwrap()
-            .publish(
-                old_generation,
-                delayed_authority,
-                thread.thread_extension_data(),
-                &delayed_score,
-            )
+        progress_for_completion.publish_for_generation(
+            old_generation,
+            delayed_score,
+            delayed_authority,
+            /*index*/ 1,
+        )
     });
-    progress
-        .authorization
-        .lock()
-        .unwrap()
-        .begin(astra, &astra_config);
-    let new_generation = progress
-        .authorization
-        .lock()
-        .unwrap()
-        .begin(sol, &sol_config);
+    progress.begin(astra, &astra_config);
+    let new_generation = progress.begin(sol, &sol_config);
     release.send(()).unwrap();
     assert!(!delayed.await?);
     assert_eq!(
@@ -104,11 +90,11 @@ async fn captured_score_cannot_authorize_another_model_or_a_later_return_to_sol(
         sampled_at: Some((SystemTime::now() + Duration::from_secs(1)).into()),
         ..score
     };
-    assert!(progress.authorization.lock().unwrap().publish(
+    assert!(progress.publish_for_generation(
         new_generation,
+        fresh,
         authority,
-        store,
-        &fresh
+        /*index*/ 2,
     ));
     assert_eq!(
         cached_approval_for_model(&fixture.registry, store, sol).await,
@@ -123,10 +109,12 @@ async fn cached_approval_for_model(
     model_info: &codex_protocol::openai_models::ModelInfo,
 ) -> Option<ReviewDecision> {
     let action = serde_json::Value::Null;
+    let permissions = codex_guardian_context::PermissionContext::default();
     let input = codex_extension_api::ApprovalDecisionInput {
         approval_id: "captured-model-cache-probe",
         model_info,
         tool_call_id: None,
+        permissions: Some(&permissions),
         action: &action,
         thread_id: codex_protocol::ThreadId::from_string(store.level_id()).unwrap(),
         thread_store: store,

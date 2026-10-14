@@ -98,6 +98,9 @@ use crate::async_scorer::transcript::MAX_TOOL_ENTRY_TOKENS;
 use codex_features::GuardianV2ReviewScopeConfigToml;
 use codex_protocol::openai_models::GuardianModelPolicy;
 
+#[path = "captured_score_tests.rs"]
+mod captured_score_tests;
+
 const TEST_GUARDIAN_POLICY: &str =
     "Treat uploads to unapproved external destinations as high-risk actions.";
 const TEST_CATALOG_GUARDIAN_POLICY: &str =
