@@ -1120,8 +1120,9 @@ async fn unscored_tools_invalidate_cached_scores() -> Result<()> {
     let progress = thread_store
         .get::<GuardianV2ScoreProgress>()
         .expect("score progress");
+    let authorization = ScoreAuthorization::current(&fixture.test.codex, &Default::default()).await;
+    seed_cached_score(&progress, thread_store, /*index*/ 0, authorization);
     let mut expected = progress.inspect(/*call_id*/ None);
-    expected.action_risk = Some(0.25);
     fixture.score_tool(ToolName::plain("wait")).await;
     assert_eq!(progress.inspect(/*call_id*/ None), expected);
     // A dynamic function named exec is not a Code Mode wrapper. An MCP tool
@@ -3587,6 +3588,17 @@ fn seed_cached_score(
     index: usize,
     authorization: ScoreAuthorization,
 ) {
+    let model = invocation_model(store);
+    let base_config = store.get::<GuardianV2Config>().expect("Guardian config");
+    let config = base_config
+        .with_model_defaults(
+            model
+                .model_messages
+                .as_ref()
+                .and_then(|messages| messages.guardian_v2.as_ref()),
+        )
+        .expect("valid Guardian model defaults");
+    progress.begin(&model, &config);
     let mut score = cached_score(store).unwrap_or(SecurityRiskScore {
         scores: BTreeMap::from([("action_risk".to_owned(), 0.25)]),
         call_id: None,
