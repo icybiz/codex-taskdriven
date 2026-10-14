@@ -266,14 +266,18 @@ async fn prepare_from_package(
     }
     let standalone = home.join("packages/standalone");
     let canonical_source = source.canonicalize()?;
+    let standalone_selection = standalone.join("current").canonicalize().ok();
+    let source_follows_latest = std::fs::read_to_string(standalone.join("auto-update-version"))
+        .ok()
+        .as_deref()
+        == canonical_source.file_name().and_then(|name| name.to_str());
+    // A first packaged install may join the latest channel. Otherwise inherit that
+    // channel only from the selected standalone package; alternate packages stay pinned.
     let follows_latest = mode == InstallMode::Missing
         && stable
-        && (standalone.join("current").canonicalize().ok().as_deref()
-            != Some(canonical_source.as_path())
-            || std::fs::read_to_string(standalone.join("auto-update-version"))
-                .ok()
-                .as_deref()
-                == canonical_source.file_name().and_then(|name| name.to_str()));
+        && (standalone_selection.is_none()
+            || (standalone_selection.as_deref() == Some(canonical_source.as_path())
+                && source_follows_latest));
     anyhow::ensure!(
         managed_install::package_root(home) == previous_root
             && (backend.is_some() || crate::client::probe(&daemon.socket_path).await.is_err()),
