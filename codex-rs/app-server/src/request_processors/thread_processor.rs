@@ -4184,6 +4184,15 @@ impl ThreadRequestProcessor {
 
                 let thread_originator = config_snapshot.originator.clone();
                 let response = ThreadResumeResponse {
+                    active_model: codex_thread.active_turn_model().await.map(
+                        |(turn_id, model)| codex_app_server_protocol::ActiveTurnModel {
+                            turn_id,
+                            model: model.model,
+                            effort: model.effort,
+                            sequence: model.sequence,
+                        },
+                    ),
+                    model_routing: config_snapshot.collaboration_mode.settings.model_routing,
                     thread,
                     disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
                     model: session_configured.model,
