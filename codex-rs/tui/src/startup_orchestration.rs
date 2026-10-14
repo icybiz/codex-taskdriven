@@ -350,6 +350,32 @@ pub(super) async fn run_main_inner(
     } else {
         Ok(())
     };
+    // These settings can weaken execution isolation or redirect sensitive
+    // conversation content. Only explicit CLI input and user-owned config
+    // layers may control them; project and managed layers are ignored.
+    let trusted_hardened_settings = hardened_user_settings(&bootstrap_config.config_layer_stack)?;
+    let use_yolo = should_use_yolo(
+        cli.dangerously_bypass_approvals_and_sandbox,
+        trusted_hardened_settings.yolo.unwrap_or(false),
+        cli.sandbox_mode.is_some(),
+        cli.approval_policy.is_some(),
+    );
+    let (sandbox_mode, approval_policy) = if cli.shared.worktree {
+        (
+            Some(SandboxMode::WorkspaceWrite),
+            Some(AskForApproval::Never.to_core()),
+        )
+    } else if use_yolo {
+        (
+            Some(SandboxMode::DangerFullAccess),
+            Some(AskForApproval::Never.to_core()),
+        )
+    } else {
+        (
+            cli.sandbox_mode.map(Into::<SandboxMode>::into),
+            cli.approval_policy.map(Into::into),
+        )
+    };
     let cloud_config_bundle = startup_draft
         .run_until(cloud_config_bundle_for_app_server_target(
             &app_server_target,

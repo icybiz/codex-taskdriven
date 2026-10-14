@@ -90,11 +90,13 @@ impl App {
             ThreadSessionState {
                 daybreak_enabled: false,
                 windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
+                active_model: None,
                 thread_id,
                 forked_from_id: None,
                 fork_parent_title: None,
                 thread_name: None,
                 model: self.chat_widget.current_model().to_string(),
+                model_routing: Default::default(),
                 model_provider_id: self.config.model_provider_id.clone(),
                 service_tier: self.chat_widget.current_service_tier().map(str::to_string),
                 approval_policy: AskForApproval::from(
@@ -108,6 +110,7 @@ impl App {
                 instruction_source_paths: Vec::new(),
                 reasoning_effort: self.chat_widget.current_reasoning_effort(),
                 collaboration_mode: None,
+                personality: None,
                 message_history: None,
                 network_proxy: None,
                 rollout_path: thread.path.clone(),

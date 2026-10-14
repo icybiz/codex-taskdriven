@@ -185,6 +185,7 @@ mod npm_registry;
 pub(crate) mod onboarding;
 mod oss_selection;
 mod pager_overlay;
+mod plain_transcript;
 mod projectless;
 pub(crate) mod public_widgets;
 mod render;

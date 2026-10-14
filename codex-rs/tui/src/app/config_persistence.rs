@@ -1158,6 +1158,14 @@ impl App {
         false
     }
 
+    pub(super) fn on_update_personality(
+        &mut self,
+        personality: codex_protocol::config_types::Personality,
+    ) {
+        self.config.personality = Some(personality);
+        self.chat_widget.set_personality(personality);
+    }
+
     pub(super) fn sync_tui_theme_selection(&mut self, name: String) {
         self.local_settings.tui.theme = Some(name.clone());
         self.chat_widget.set_tui_theme(Some(name));

@@ -1919,6 +1919,10 @@ impl App {
             replay_filter::snapshot_has_pending_interactive_request(&snapshot);
         self.chat_widget
             .set_queue_autosend_suppressed(/*suppressed*/ true);
+        let resumed_live_model = snapshot
+            .session
+            .as_ref()
+            .and_then(|session| session.active_model.clone());
         let has_resumed_collaboration_mode = snapshot
             .session
             .as_ref()

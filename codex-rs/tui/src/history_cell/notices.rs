@@ -208,7 +208,7 @@ pub(crate) fn new_cyber_policy_error_event(
 pub(crate) fn new_cyber_policy_recovery_event(
     prompt_restored: bool,
     queued_input_paused: bool,
-) -> PrefixedWrappedHistoryCell {
+) -> super::WarningHistoryCell {
     let mut message = String::from("CON did not retry this turn.");
     if prompt_restored {
         message.push_str(

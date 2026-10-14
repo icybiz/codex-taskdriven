@@ -2347,6 +2347,7 @@ async fn thread_session_state_from_thread_start_response(
         response.runtime_workspace_roots.clone(),
         response.instruction_source_path_uris(),
         response.reasoning_effort.clone(),
+        response.model_routing,
         local_settings,
     )
     .await?;
@@ -2385,9 +2386,19 @@ async fn thread_session_state_from_thread_resume_response(
         response.runtime_workspace_roots.clone(),
         response.instruction_source_path_uris(),
         response.reasoning_effort.clone(),
+        response.model_routing,
         local_settings,
     )
     .await?;
+    session.active_model = response.active_model.as_ref().map(|model| {
+        codex_app_server_protocol::TurnModelUpdatedNotification {
+            thread_id: response.thread.id.clone(),
+            turn_id: model.turn_id.clone(),
+            model: model.model.clone(),
+            effort: model.effort.clone(),
+            sequence: model.sequence,
+        }
+    });
     session.collaboration_mode = response.collaboration_mode.clone().map(Box::new);
     session.daybreak_enabled = response.thread.daybreak_enabled.unwrap_or(false);
     Ok(session)
@@ -2422,6 +2433,7 @@ async fn thread_session_state_from_thread_fork_response(
         response.runtime_workspace_roots.clone(),
         response.instruction_source_path_uris(),
         response.reasoning_effort.clone(),
+        response.model_routing,
         local_settings,
     )
     .await?;
@@ -2475,6 +2487,7 @@ async fn thread_session_state_from_thread_response(
     runtime_workspace_roots: Vec<AbsolutePathBuf>,
     instruction_source_paths: Vec<PathUri>,
     reasoning_effort: Option<codex_protocol::openai_models::ReasoningEffort>,
+    model_routing: codex_protocol::config_types::ModelRouting,
     local_settings: &LocalSettings,
 ) -> Result<ThreadSessionState, String> {
     let thread_id = ThreadId::from_string(thread_id)
@@ -2492,6 +2505,7 @@ async fn thread_session_state_from_thread_response(
     Ok(ThreadSessionState {
         daybreak_enabled: false,
         windows_sandbox_host,
+        active_model: None,
         thread_id,
         forked_from_id,
         fork_parent_title: None,
@@ -2509,6 +2523,7 @@ async fn thread_session_state_from_thread_response(
         instruction_source_paths,
         reasoning_effort,
         collaboration_mode: None,
+        personality: None,
         message_history: Some(MessageHistoryMetadata {
             log_id,
             entry_count,
@@ -4282,6 +4297,7 @@ mod tests {
             Vec::new(),
             Vec::new(),
             /*reasoning_effort*/ None,
+            codex_protocol::config_types::ModelRouting::Fixed,
             &LocalSettings::from(&config),
         )
         .await
@@ -4318,6 +4334,7 @@ mod tests {
             Vec::new(),
             Vec::new(),
             /*reasoning_effort*/ None,
+            codex_protocol::config_types::ModelRouting::Fixed,
             &LocalSettings::from(&config),
         )
         .await
