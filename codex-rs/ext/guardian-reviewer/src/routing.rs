@@ -93,6 +93,7 @@ impl<H: ReviewHost> ReviewRequest<'_, H> {
             let input = ApprovalDecisionInput {
                 permissions: permissions.as_ref(),
                 approval_id: self.approval_id,
+                model_info: self.model,
                 tool_call_id: self.tool_call_id,
                 action,
                 thread_id: self.thread_id,
