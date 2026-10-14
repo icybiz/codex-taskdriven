@@ -19,6 +19,18 @@ use codex_protocol::models::PermissionProfile;
 use codex_protocol::openai_models::MODEL_SPECIALTY_CYBER;
 
 impl App {
+    pub(super) async fn apply_taskdriven_mode(
+        &mut self,
+        app_server: &mut AppServerSession,
+        mode: codex_protocol::config_types::CollaborationMode,
+    ) {
+        let model = mode.model().to_string();
+        let effort = mode.reasoning_effort();
+        self.chat_widget.set_effective_collaboration_mode(mode);
+        self.sync_active_thread_model_setting(app_server, model, effort)
+            .await;
+    }
+
     pub(super) async fn sync_active_thread_model_setting(
         &mut self,
         app_server: &mut AppServerSession,

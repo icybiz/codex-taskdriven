@@ -1,0 +1,16 @@
+---
+source: tui/src/chatwidget/tests/taskdriven_tests.rs
+assertion_line: 47
+expression: "render_bottom_popup(&chat, 72)"
+---
+  Reasoning for Implementation
+  Model: gpt-6-astra
+
+  1. Low
+  2. Medium
+  3. High
+  4. Extra high
+› 5. Max (current)
+  6. Ultra
+
+  Press enter to confirm or esc to go back

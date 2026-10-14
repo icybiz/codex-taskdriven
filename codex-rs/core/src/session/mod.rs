@@ -258,6 +258,7 @@ mod rollout_reconstruction;
 pub(crate) mod session;
 pub(crate) mod startup_prewarm;
 mod step_activation;
+pub(crate) use step_activation::step_settings_are_current;
 pub(crate) mod step_context;
 pub(crate) mod step_settings;
 mod thread_settings;

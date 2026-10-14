@@ -1,0 +1,25 @@
+---
+source: tui/src/chatwidget/tests/taskdriven_tests.rs
+assertion_line: 13
+expression: "render_bottom_popup(&chat, 92)"
+---
+  TaskDriven routing
+  Stored in $CODEX_HOME/taskdriven.toml
+
+  1. Enable TaskDriven                        Start with the configured initial task and
+                                              route later phases automatically.
+  2. Writing · writing                        gpt-5.6-sol/xhigh · Drafting, rewriting, and
+                                              user-facing prose
+› 3. Investigation · investigation (current)  gpt-5.6-sol/xhigh · Reading, diagnosis,
+                                              research, and design
+  4. Implementation · implementation          gpt-6-astra/max · Code changes, fixes, and
+                                              test authoring
+  5. Verification · verification              gpt-5.6-sol/xhigh · Builds, tests, reviews,
+                                              and result reporting
+  6. Choose initial task…                     Select the route used when TaskDriven is
+                                              enabled.
+  7. Add task…                                Create a task, then choose its model and
+                                              effort.
+  8. Remove task…                             Delete a configured task.
+
+  Press enter to confirm or esc to go back

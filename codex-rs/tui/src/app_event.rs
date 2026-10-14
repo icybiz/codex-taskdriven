@@ -1192,6 +1192,30 @@ pub(crate) enum AppEvent {
         action: AstraModelPickerAction,
     },
 
+    OpenTaskDrivenPopup,
+    OpenTaskDrivenModelPopup {
+        task_id: String,
+    },
+    OpenTaskDrivenEffortPopup {
+        task_id: String,
+        model: ModelPreset,
+    },
+    OpenTaskDrivenInitialTaskPopup,
+    OpenTaskDrivenAddPrompt,
+    OpenTaskDrivenRemovePopup,
+    SetTaskDrivenEnabled(bool),
+    SetTaskDrivenMapping {
+        task_id: String,
+        model: String,
+        effort: ReasoningEffort,
+    },
+    SetTaskDrivenInitialTask(String),
+    AddTaskDrivenTask(String),
+    RemoveTaskDrivenTask(String),
+
+    /// Update the current personality in the running app and widget.
+    UpdatePersonality(Personality),
+
     /// Result of creating a TUI-owned WebRTC offer for an active thread.
     RealtimeWebrtcOfferCreated {
         thread_id: ThreadId,

@@ -30,6 +30,7 @@ use crate::tools::handlers::TestSyncHandler;
 use crate::tools::handlers::ToolSearchHandlerCache;
 use crate::tools::handlers::ViewImageHandler;
 use crate::tools::handlers::WaitForEnvironmentHandler;
+use crate::tools::handlers::WorkPhaseHandler;
 use crate::tools::handlers::WriteStdinHandler;
 use crate::tools::handlers::extension_tools::ExtensionToolAdapter;
 use crate::tools::handlers::multi_agents::CloseAgentHandler;
@@ -1220,6 +1221,22 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
     if features.enabled(Feature::TokenBudget) {
         registry.add_with_exposure(NewContextWindowHandler, ToolExposure::DirectModelOnly);
         registry.add(GetContextRemainingHandler);
+    }
+
+    let taskdriven_enabled = codex_taskdriven::instructions_are_enabled(
+        turn_context
+            .collaboration_mode()
+            .settings
+            .developer_instructions
+            .as_deref(),
+    );
+    if taskdriven_enabled
+        && features.enabled(Feature::StepModelSwitching)
+        && !crate::guardian::is_basic_session_source(&turn_context.session_source)
+        && let Ok(config) =
+            codex_taskdriven::TaskDrivenConfig::load(turn_context.config.codex_home.as_path())
+    {
+        registry.add_with_exposure(WorkPhaseHandler::new(config), ToolExposure::DirectModelOnly);
     }
 
     let current_time_reminder_enabled = features.enabled(Feature::CurrentTimeReminder);

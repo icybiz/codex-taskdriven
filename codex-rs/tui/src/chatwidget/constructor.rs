@@ -46,9 +46,9 @@ impl ChatWidget {
         let model_for_header = model
             .clone()
             .unwrap_or_else(|| DEFAULT_MODEL_DISPLAY_NAME.to_string());
-        let active_collaboration_mask =
+        let mut active_collaboration_mask =
             Self::initial_collaboration_mask(&config, model_catalog.as_ref(), model_override);
-        let header_model = active_collaboration_mask
+        let mut header_model = active_collaboration_mask
             .as_ref()
             .and_then(|mask| mask.model.clone())
             .unwrap_or_else(|| model_for_header.clone());
@@ -58,10 +58,40 @@ impl ChatWidget {
             developer_instructions: None,
         };
         // Collaboration modes start in Default mode.
-        let current_collaboration_mode = CollaborationMode {
+        let mut current_collaboration_mode = CollaborationMode {
             mode: ModeKind::Default,
             settings: fallback_default,
         };
+        if let Ok(taskdriven) =
+            codex_taskdriven::TaskDrivenConfig::load(config.codex_home.as_path())
+            && taskdriven.enabled
+            && let Ok(presets) = model_catalog.try_list_models()
+            && Self::validate_taskdriven_catalog(&taskdriven, &presets).is_ok()
+            && let Some(initial) = taskdriven.initial()
+        {
+            header_model = initial.model.clone();
+            current_collaboration_mode.settings.model = initial.model.clone();
+            current_collaboration_mode.settings.reasoning_effort =
+                Some(initial.reasoning_effort.clone());
+            current_collaboration_mode.settings.developer_instructions =
+                Some(codex_taskdriven::enable_instructions(
+                    current_collaboration_mode
+                        .settings
+                        .developer_instructions
+                        .as_deref(),
+                    &taskdriven,
+                ));
+            if let Some(mask) = active_collaboration_mask.as_mut() {
+                mask.model = Some(initial.model.clone());
+                mask.reasoning_effort = Some(Some(initial.reasoning_effort.clone()));
+                mask.developer_instructions = Some(
+                    current_collaboration_mode
+                        .settings
+                        .developer_instructions
+                        .clone(),
+                );
+            }
+        }
 
         let empty_state_animation = crate::empty_state_animation::EmptyStateAnimation::default();
         let header = Self::placeholder_session_header_cell(&config);

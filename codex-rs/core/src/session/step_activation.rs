@@ -4,6 +4,7 @@ use super::environment::ensure_configs_stay_owner_provided;
 use super::environment::validate_environment_configs;
 use super::session::Session;
 use super::session::SessionConfiguration;
+use super::step_context::StepContext;
 use super::step_settings::ResolvedStepSettings;
 use super::step_settings::StepSettingsConstraints;
 use super::step_settings::StepSettingsUpdate;
@@ -23,6 +24,12 @@ use codex_protocol::protocol::TurnEnvironmentSelection;
 use codex_protocol::protocol::TurnSettingsUpdate;
 use codex_protocol::protocol::TurnSettingsUpdateOutcome;
 use std::sync::Arc;
+
+/// Reject a later tool call from a response whose settings were already replaced.
+/// Tools that started before publication keep their captured step context.
+pub(crate) fn step_settings_are_current(step: &StepContext) -> bool {
+    Arc::ptr_eq(&step.settings, &step.turn.current_settings.load_full())
+}
 
 /// Temporary restrictions while approvals and Guardian still read the admitted
 /// `TurnContext`. Ordinary live authorization is validated separately. Remove
@@ -216,20 +223,39 @@ fn check_legacy_model_safety(
 }
 
 impl Session {
+    pub(crate) async fn apply_taskdriven_settings(
+        &self,
+        step: &StepContext,
+        update: TurnSettingsUpdate,
+    ) -> TurnSettingsUpdateOutcome {
+        self.apply_turn_settings_from(&step.turn.sub_id, update, Some(&step.settings))
+            .await
+    }
+
     /// Publishes settings to the named, originally captured live task, regardless
     /// of task kind. Publication does not propagate to child sessions or require
     /// the task to sample; consumers using initial settings remain unchanged.
     ///
     /// Callers must serialize updates through completion, including model
     /// resolution, so each sparse patch sees the preceding publication.
-    #[expect(
-        clippy::await_holding_invalid_type,
-        reason = "the final managed-policy check and active settings publication must remain atomic"
-    )]
     pub(super) async fn apply_turn_settings(
         &self,
         turn_id: &str,
         update: TurnSettingsUpdate,
+    ) -> TurnSettingsUpdateOutcome {
+        self.apply_turn_settings_from(turn_id, update, /*expected*/ None)
+            .await
+    }
+
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "the final managed-policy check and active settings publication must remain atomic"
+    )]
+    async fn apply_turn_settings_from(
+        &self,
+        turn_id: &str,
+        update: TurnSettingsUpdate,
+        expected: Option<&Arc<ResolvedStepSettings>>,
     ) -> TurnSettingsUpdateOutcome {
         let updates_model_settings = update.model.is_some()
             || update.effort.is_some()
@@ -250,12 +276,17 @@ impl Session {
             let active = self.active_turn.lock().await;
             active.as_ref().and_then(|active| {
                 active.task.as_ref().and_then(|task| {
+                    let current = if expected.is_some() {
+                        task.turn_context.current_settings.load_full()
+                    } else {
+                        task.turn_context.next_step_settings.load_full()
+                    };
                     (task.turn_context.sub_id == turn_id && !task.cancellation_token.is_cancelled())
                         .then(|| {
                             (
                                 Arc::clone(&task.turn_context),
                                 Arc::clone(&task.done),
-                                task.turn_context.next_step_settings.load_full(),
+                                current,
                             )
                         })
                 })
@@ -264,6 +295,9 @@ impl Session {
         let Some((turn_context, task_done, current)) = target else {
             return TurnSettingsUpdateOutcome::TargetUnavailable;
         };
+        if expected.is_some_and(|expected| !Arc::ptr_eq(expected, &current)) {
+            return TurnSettingsUpdateOutcome::TargetUnavailable;
+        }
         let TurnSettingsUpdate {
             approvals_reviewer,
             environments,
@@ -308,6 +342,11 @@ impl Session {
         // abandons the update without retrying or applying it to the replacement.
         if !Arc::ptr_eq(&task.done, &task_done)
             || !Arc::ptr_eq(&task.turn_context, &turn_context)
+            || if expected.is_some() {
+                !Arc::ptr_eq(&task.turn_context.current_settings.load_full(), &current)
+            } else {
+                !Arc::ptr_eq(&task.turn_context.next_step_settings.load_full(), &current)
+            }
             || task.cancellation_token.is_cancelled()
         {
             return TurnSettingsUpdateOutcome::TargetUnavailable;
@@ -363,9 +402,13 @@ impl Session {
         // Save changed settings first. The manager then installs any new environment list before
         // waking waiting work. The next step cannot read either until we release this lock.
         if let Some(settings) = updated_settings {
-            task.turn_context
-                .next_step_settings
-                .store(Arc::new(settings));
+            if expected.is_some() {
+                task.turn_context.current_settings.store(Arc::new(settings));
+            } else {
+                task.turn_context
+                    .next_step_settings
+                    .store(Arc::new(settings));
+            }
         }
         if environments.is_some() {
             self.services.turn_environments.update_selections(proposed);

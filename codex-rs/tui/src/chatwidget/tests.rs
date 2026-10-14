@@ -297,6 +297,8 @@ mod status_command_tests;
 mod status_surface_previews;
 #[path = "tests/subagent_activity_tests.rs"]
 mod subagent_activity;
+#[path = "tests/taskdriven_tests.rs"]
+mod taskdriven_tests;
 mod terminal_title;
 #[path = "tests/tool_activity_tests.rs"]
 mod tool_activity_tests;
