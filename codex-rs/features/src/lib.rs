@@ -389,6 +389,8 @@ pub enum Feature {
     FastMode,
     /// Enable explicitly requested model changes for later step captures.
     StepModelSwitching,
+    /// Let the agent select the configured work phase within a turn.
+    AutonomousWorkPhase,
     /// Enable voice conversations in the TUI.
     RealtimeConversation,
     /// Prevent idle system sleep while a turn is actively running.
