@@ -180,7 +180,7 @@ fn direct_tool_settings_test() -> TestCodexBuilder {
     })
 }
 
-fn paused_response(response_id: &str, call_id: &str) -> String {
+pub(super) fn paused_response(response_id: &str, call_id: &str) -> String {
     sse(vec![
         ev_response_created(response_id),
         pause_call(call_id),

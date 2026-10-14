@@ -522,7 +522,7 @@ async fn startup_draft_does_not_turn_a_standalone_enter_into_a_newline_at_handof
 
     pump.bottom_pane
         .set_composer_text("first line".to_string(), Vec::new(), Vec::new());
-    pump.pending_paste_newline = Some((std::time::Instant::now(), "\n".to_string()));
+    pump.pending_paste_newline = Some((std::time::Instant::now().into(), "\n".to_string()));
 
     pump.flush_pending_paste_newline(&mut tui)
         .await

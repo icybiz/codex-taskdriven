@@ -4635,6 +4635,7 @@ async fn paginated_compaction_cold_resume_from_bounded_suffix() -> Result<()> {
             collaboration_mode: Some(CollaborationMode {
                 mode: ModeKind::Plan,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: test.session_configured.model.clone(),
                     reasoning_effort: test.config.model_reasoning_effort.clone(),
                     developer_instructions: Some(

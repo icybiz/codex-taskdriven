@@ -80,6 +80,10 @@ pub struct Cli {
     #[arg(long = "no-alt-screen", default_value_t = false)]
     pub no_alt_screen: bool,
 
+    /// Append prompts and visible Codex responses to a plain-text file.
+    #[arg(long = "plain-transcript", value_name = "FILE", value_hint = clap::ValueHint::FilePath)]
+    pub plain_transcript: Option<std::path::PathBuf>,
+
     /// Run without the shared background server, even if it is already running.
     #[arg(long)]
     pub no_daemon: bool,

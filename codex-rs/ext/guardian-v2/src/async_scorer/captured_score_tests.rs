@@ -1,7 +1,9 @@
 use super::*;
+use crate::async_scorer::authorization::ScoreAuthorization;
 use crate::async_scorer::config::GuardianV2Config;
 use codex_protocol::openai_models::ModelsResponse;
 use pretty_assertions::assert_eq;
+use std::time::SystemTime;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn captured_score_cannot_authorize_another_model_or_a_later_return_to_sol() -> Result<()> {
@@ -37,9 +39,9 @@ async fn captured_score_cannot_authorize_another_model_or_a_later_return_to_sol(
         sol_config.classifier_instructions,
         astra_config.classifier_instructions
     );
-    let authority = super::super::ScoreAuthorization {
+    let authority = ScoreAuthorization {
         model: Some(Arc::new(sol.clone())),
-        ..super::super::ScoreAuthorization::current(&fixture.test.codex, &Default::default()).await
+        ..ScoreAuthorization::current(&fixture.test.codex, &Default::default()).await
     };
     let old_generation = progress.begin(sol, &sol_config);
     let score = SecurityRiskScore {

@@ -290,8 +290,7 @@ pub(crate) fn build_core_tool_registry(
         turn_context,
         model_info,
         model_routing: turn_context
-            .next_step_settings
-            .load()
+            .next_step_settings_for_test()
             .selected_collaboration_mode()
             .settings
             .model_routing,

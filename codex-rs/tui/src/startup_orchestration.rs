@@ -74,6 +74,17 @@ pub(super) async fn run_main_inner(
             std::process::exit(1);
         }
     };
+    let explicit_plain_transcript = cli
+        .plain_transcript
+        .as_ref()
+        .map(AbsolutePathBuf::relative_to_current_dir)
+        .transpose()?;
+    if let Some(path) = explicit_plain_transcript.as_ref() {
+        cli_kv_overrides.push((
+            "plain_transcript".to_string(),
+            toml::Value::String(path.to_string_lossy().into_owned()),
+        ));
+    }
     if explicit_remote_endpoint.is_some()
         && cli_kv_overrides.iter().any(|(key, value)| {
             key == "sandbox_workspace_write.writable_roots"
@@ -931,6 +942,7 @@ pub(super) async fn run_main_inner(
         environment_manager,
         embedded_network_policy,
         managed_worktree.clone(),
+        explicit_plain_transcript,
         daemon_startup_warning,
         launch_telemetry,
         startup_draft,

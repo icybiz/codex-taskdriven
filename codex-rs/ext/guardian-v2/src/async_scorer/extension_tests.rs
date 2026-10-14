@@ -294,6 +294,7 @@ async fn installed_extension_uses_http_after_warm_socket_auth_expires() -> Resul
         }
         registry.tool_lifecycle_contributors()[0]
             .on_tool_start(ToolStartInput {
+                model_info: &invocation_model(thread_store),
                 permissions: Box::pin(async { Some(Default::default()) }),
                 session_store: &session_store,
                 thread_store,
@@ -570,6 +571,7 @@ async fn sandboxed_shell_classification_respects_review_scope() -> Result<()> {
     ] {
         fixture.registry.tool_lifecycle_contributors()[0]
             .on_tool_start(ToolStartInput {
+                model_info: &invocation_model(thread_store),
                 permissions: Box::pin(async { panic!("unexpected permission resolution") }),
                 session_store: &fixture.session_store,
                 thread_store,
@@ -669,6 +671,7 @@ async fn computer_use_only_scores_cannot_approve_other_actions() -> Result<()> {
     };
     fixture.registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &fixture.session_store,
             thread_store,
@@ -862,6 +865,27 @@ async fn sample_configured_conversation_history_with_source(
     model_defaults: Option<GuardianV2ModelConfig>,
     source: ToolCallSource,
 ) -> Result<(serde_json::Value, TestCodex, ExtensionRegistry<Config>)> {
+    sample_configured_conversation_history_with_source_and_model(
+        conversation_history,
+        arguments,
+        guardian_policy,
+        guardian_config,
+        model_defaults,
+        source,
+        None,
+    )
+    .await
+}
+
+async fn sample_configured_conversation_history_with_source_and_model(
+    conversation_history: Vec<ResponseItem>,
+    arguments: &str,
+    guardian_policy: Option<&str>,
+    guardian_config: &str,
+    model_defaults: Option<GuardianV2ModelConfig>,
+    source: ToolCallSource,
+    captured_model: Option<ModelInfo>,
+) -> Result<(serde_json::Value, TestCodex, ExtensionRegistry<Config>)> {
     let (request, test, registry, _) = sample_configured_conversation_history_with_delivery(
         conversation_history,
         arguments,
@@ -870,6 +894,7 @@ async fn sample_configured_conversation_history_with_source(
         model_defaults,
         source,
         MessagingSetup::Disabled,
+        captured_model,
     )
     .await?;
     Ok((request, test, registry))
@@ -888,6 +913,7 @@ async fn sample_configured_conversation_history_with_delivery(
     model_defaults: Option<GuardianV2ModelConfig>,
     source: ToolCallSource,
     messaging: MessagingSetup,
+    captured_model: Option<ModelInfo>,
 ) -> Result<(
     serde_json::Value,
     TestCodex,
@@ -1042,6 +1068,7 @@ async fn sample_configured_conversation_history_with_delivery(
 
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model,
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &session_store,
             thread_store,
@@ -1162,6 +1189,7 @@ impl GuardianFailureFixture {
         };
         self.registry.tool_lifecycle_contributors()[0]
             .on_tool_start(ToolStartInput {
+                model_info: &invocation_model(thread_store),
                 permissions: Box::pin(async { Some(Default::default()) }),
                 session_store: &self.session_store,
                 thread_store,
@@ -2407,6 +2435,7 @@ async fn contributor_skips_required_models_in_standard_scope() -> Result<()> {
     };
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { panic!("unexpected permission resolution") }),
             session_store: &session_store,
             thread_store,
@@ -2710,6 +2739,7 @@ async fn contributor_counts_failed_thread_lookups_toward_score_lag() -> Result<(
     };
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &session_store,
             thread_store,
@@ -3221,6 +3251,7 @@ async fn assert_parent_compaction_reuse(parent_context_for_review: bool) -> Resu
 
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &session_store,
             thread_store,
@@ -3299,6 +3330,7 @@ async fn assert_parent_compaction_reuse(parent_context_for_review: bool) -> Resu
     };
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &session_store,
             thread_store,
@@ -3396,6 +3428,7 @@ async fn cached_approval_discounts_only_its_own_unscored_wrapper() -> Result<()>
             },
         };
         progress.observe(&ToolStartInput {
+            model_info: &invocation_model(store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &fixture.session_store,
             thread_store: store,
@@ -3534,27 +3567,6 @@ fn invocation_model(store: &ExtensionData) -> Arc<codex_protocol::openai_models:
     store.get().expect("parent model metadata")
 }
 
-fn set_score_authorization(store: &ExtensionData, authorization: ScoreAuthorization) {
-    let model = invocation_model(store);
-    let base = store
-        .get::<GuardianV2Config>()
-        .expect("Guardian configuration");
-    let config = base
-        .with_model_defaults(
-            model
-                .model_messages
-                .as_ref()
-                .and_then(|messages| messages.guardian_v2.as_ref()),
-        )
-        .expect("valid Guardian model configuration");
-    let progress = store
-        .get::<GuardianV2ScoreProgress>()
-        .expect("score progress");
-    let mut context = progress.authorization.lock().unwrap();
-    context.begin(&model, &config);
-    context.authorization = Some(authorization);
-}
-
 fn review_scope(action: &serde_json::Value) -> Option<GuardianScope> {
     match action.get("tool").and_then(serde_json::Value::as_str)? {
         "mcp_tool_call" => action
@@ -3587,6 +3599,7 @@ fn seed_cached_score(
 
 fn observe_unscored_call(progress: &GuardianV2ScoreProgress, store: &ExtensionData) -> usize {
     progress.observe(&ToolStartInput {
+        model_info: &invocation_model(store),
         permissions: Box::pin(async { Some(Default::default()) }),
         session_store: store,
         thread_store: store,

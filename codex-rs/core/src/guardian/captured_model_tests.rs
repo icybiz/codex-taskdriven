@@ -3,7 +3,8 @@ use crate::context::GuardianNodeReplPolicy;
 use crate::context::NodeReplReviewEvidenceMode;
 use crate::context::node_repl_review_evidence_mode;
 use crate::responses_metadata::CodexResponsesRequestKind;
-use crate::turn_metadata::McpTurnMetadataContext;
+use crate::turn_metadata::ExecutionMetadata;
+use codex_prompts::ResolvedModelMessages;
 use codex_protocol::openai_models::ModelInfo;
 use pretty_assertions::assert_eq;
 
@@ -66,7 +67,9 @@ async fn guardian_captured_model_survives_parent_fallback_and_catalog_refresh() 
         );
         assert_eq!(
             prepared.node_repl_policy,
-            GuardianNodeReplPolicy::from_model_messages(context.model_info.model_messages.as_ref())
+            GuardianNodeReplPolicy::from_messages(ResolvedModelMessages::from_model(
+                &context.model_info
+            ))
         );
         assert_eq!(
             prepared
@@ -111,10 +114,14 @@ async fn guardian_captured_calls_keep_both_node_flags_in_mcp_and_responses_metad
         let model = &context.model_info;
         let mcp = turn
             .turn_metadata_state
-            .current_meta_value_for_mcp_request(McpTurnMetadataContext {
+            .current_meta_value_for_mcp_request(ExecutionMetadata {
                 model: &model.slug,
                 reasoning_effort: context.reasoning_effort.clone(),
                 node_repl_disabled: model.node_repl_disabled,
+                auto_review_enabled: routes_approval_policy_to_guardian(
+                    context.approval_policy,
+                    context.approvals_reviewer,
+                ),
                 node_repl_auto_review_required: model.node_repl_auto_review_required,
             })
             .unwrap();
@@ -124,8 +131,13 @@ async fn guardian_captured_calls_keep_both_node_flags_in_mcp_and_responses_metad
             model.node_repl_auto_review_required
         );
         assert_eq!(mcp["node_repl_disabled"], model.node_repl_disabled);
+        let mut step_context = StepContext::for_test(Arc::clone(&turn));
+        let step = Arc::get_mut(&mut step_context).expect("unshared test step context");
+        let mut settings = step.settings.as_ref().clone();
+        settings.model_info = Arc::clone(model);
+        step.settings = Arc::new(settings);
         let responses = session
-            .responses_metadata(&turn, model, CodexResponsesRequestKind::Turn)
+            .responses_metadata(&step_context, CodexResponsesRequestKind::Turn)
             .await;
         assert_eq!(
             responses.node_repl_auto_review_required,

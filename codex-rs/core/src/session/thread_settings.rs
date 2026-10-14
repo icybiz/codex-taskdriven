@@ -36,7 +36,10 @@ pub(super) async fn update(
     overrides: impl Into<WithTurnExtensionData<ThreadSettingsOverrides>>,
 ) -> ConstraintResult<ThreadSettingsSnapshot> {
     let updates = prepare_update(overrides);
+    let explicit_model_selection =
+        updates.step_settings.model.is_some() || updates.step_settings.collaboration_mode.is_some();
     let commit = session.update_settings(updates).await?;
+    disable_active_automatic_routing(session, explicit_model_selection, &commit.snapshot).await;
     // Standalone settings changes supersede a pending automatic continuation.
     session.state.lock().await.last_started_turn_id = None;
     Ok(commit.snapshot)
@@ -112,8 +115,18 @@ pub(super) async fn apply_update(
     let explicit_model_selection =
         updates.step_settings.model.is_some() || updates.step_settings.collaboration_mode.is_some();
     let commit = session.update_settings(updates).await?;
+    disable_active_automatic_routing(session, explicit_model_selection, &commit.snapshot).await;
+    emit_applied(session, submission_id, commit.snapshot).await;
+    Ok(())
+}
+
+async fn disable_active_automatic_routing(
+    session: &Session,
+    explicit_model_selection: bool,
+    snapshot: &ThreadSettingsSnapshot,
+) {
     if explicit_model_selection
-        && commit.snapshot.collaboration_mode.settings.model_routing
+        && snapshot.collaboration_mode.settings.model_routing
             == codex_protocol::config_types::ModelRouting::Fixed
     {
         // A fixed selection disables automatic routing immediately, while the
@@ -135,8 +148,6 @@ pub(super) async fn apply_update(
             }
         }
     }
-    emit_applied(session, submission_id, commit.snapshot).await;
-    Ok(())
 }
 
 /// Emits the snapshot published by one successful settings update.

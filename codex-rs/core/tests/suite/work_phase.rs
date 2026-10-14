@@ -95,6 +95,7 @@ async fn work_phase_fixed_selection_stops_automation_in_the_running_turn() -> Re
                 effort: Some(Some(ReasoningEffort::Max)),
                 ..Default::default()
             },
+            reply: None,
         })
         .await?;
     wait_for_event(&test.codex, |event| {
@@ -175,8 +176,8 @@ fn work_phase_test() -> TestCodexBuilder {
                 .expect("load bundled model catalog")
                 .models
                 .into_iter()
-                .find(|model| model.slug == "gpt-5.4")
-                .expect("gpt-5.4 template in bundled catalog");
+                .find(|model| model.slug == "gpt-5.5")
+                .expect("gpt-5.5 template in bundled catalog");
             config.model_catalog = Some(ModelsResponse {
                 models: ["gpt-5.6-sol", "gpt-6-astra"]
                     .into_iter()

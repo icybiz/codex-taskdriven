@@ -1900,6 +1900,9 @@ enabled = false
 
         app.chat_widget
             .handle_thread_session(crate::session_state::ThreadSessionState {
+                active_model: None,
+                model_routing: Default::default(),
+                personality: None,
                 daybreak_enabled: false,
                 windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
                 thread_id: ThreadId::new(),

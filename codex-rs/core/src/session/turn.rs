@@ -1630,6 +1630,21 @@ async fn run_sampling_request(
     cancellation_token: CancellationToken,
 ) -> CodexResult<(SamplingRequestResult, Vec<ResponseItem>)> {
     let turn_context = Arc::clone(&step_context.turn);
+    if turn_context
+        .config
+        .features
+        .enabled(Feature::StepModelSwitching)
+    {
+        let model = sess
+            .record_model_request(
+                &turn_context,
+                step_context.settings.model_info.slug.clone(),
+                step_context.settings.effective_reasoning_effort(),
+            )
+            .await;
+        sess.send_event(&turn_context, EventMsg::TurnModelUpdated(model))
+            .await;
+    }
     let preempt = step_context.preempt.clone().unwrap_or_default();
     let _input_watch = if let Some(preempt) = &step_context.preempt {
         sess.input_queue

@@ -4049,6 +4049,8 @@ mod tests {
         let forked_from_id = ThreadId::new();
         let read_only_profile = PermissionProfile::read_only();
         let response = ThreadResumeResponse {
+            active_model: None,
+            model_routing: codex_protocol::config_types::ModelRouting::Fixed,
             disabled_plugin_ids: Vec::new(),
             thread: codex_app_server_protocol::Thread {
                 originator: None,
@@ -4132,6 +4134,7 @@ mod tests {
             collaboration_mode: Some(codex_protocol::config_types::CollaborationMode {
                 mode: codex_protocol::config_types::ModeKind::Plan,
                 settings: codex_protocol::config_types::Settings {
+                    model_routing: Default::default(),
                     model: "gpt-5.5".to_string(),
                     reasoning_effort: None,
                     developer_instructions: Some("Keep planning".to_string()),

@@ -824,11 +824,13 @@ impl Session {
             },
         };
         let collaboration_mode = persisted_collaboration_mode.map_or(collaboration_mode, |saved| {
-            saved.with_updates(
+            let mut restored = saved.with_updates(
                 Some(model.clone()),
                 Some(config.model_reasoning_effort.clone()),
                 /*developer_instructions*/ None,
-            )
+            );
+            restored.settings.model_routing = saved.settings.model_routing;
+            restored
         });
         let fast_mode_enabled = config.features.enabled(Feature::FastMode);
         let initial_service_tier_warning = unsupported_service_tier_warning(

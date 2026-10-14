@@ -769,6 +769,9 @@ async fn required_windows_sandbox_setup_defers_configured_initial_prompt() {
         create_initial_user_message(Some(initial_prompt.clone()), Vec::new(), Vec::new());
 
     chat.handle_thread_session(crate::session_state::ThreadSessionState {
+        active_model: None,
+        model_routing: Default::default(),
+        personality: None,
         daybreak_enabled: false,
         windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
         thread_id: ThreadId::new(),
@@ -1211,6 +1214,9 @@ async fn permissions_selection_marks_auto_review_current_after_session_configure
         .set_enabled(Feature::GuardianApproval, /*enabled*/ true);
 
     chat.handle_thread_session(crate::session_state::ThreadSessionState {
+        active_model: None,
+        model_routing: Default::default(),
+        personality: None,
         daybreak_enabled: false,
         windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
         thread_id: ThreadId::new(),
@@ -1265,6 +1271,9 @@ async fn permissions_selection_marks_auto_review_current_with_custom_workspace_w
     let permission_profile = app_server_workspace_write_profile(extra_root);
 
     chat.handle_thread_session(crate::session_state::ThreadSessionState {
+        active_model: None,
+        model_routing: Default::default(),
+        personality: None,
         daybreak_enabled: false,
         windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
         thread_id: ThreadId::new(),

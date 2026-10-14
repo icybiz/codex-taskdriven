@@ -312,6 +312,7 @@ async fn streamed_question_precedes_reply_across_resume(
                 collaboration_mode: Some(CollaborationMode {
                     mode,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,
