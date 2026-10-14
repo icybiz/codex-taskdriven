@@ -5,6 +5,14 @@ use crate::app_event::AppEvent;
 use crate::chatwidget::rate_limits::RATE_LIMIT_SWITCH_PROMPT_VIEW_ID;
 
 impl ChatWidget {
+    /// Set the personality in the widget's config copy.
+    pub(crate) fn set_personality(
+        &mut self,
+        personality: codex_protocol::config_types::Personality,
+    ) {
+        self.config.personality = Some(personality);
+    }
+
     pub(crate) fn set_daybreak_enabled(&mut self, enabled: bool) {
         self.daybreak_enabled = enabled && self.config.features.enabled(Feature::CliDaybreak);
         self.bottom_pane

@@ -92,6 +92,7 @@ impl AppServerSession {
             config.workspace_roots.clone(),
             Vec::new(),
             thread.reasoning_effort,
+            config.model_routing,
             local_settings,
         )
         .await
