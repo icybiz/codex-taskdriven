@@ -1,13 +1,54 @@
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
-<p align="center">
-  <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
-</p>
-</br>
-If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE.</a>
-</br>If you want the desktop app experience, run <code>codex app</code> or visit <a href="https://chatgpt.com/codex?app-landing-page=true">the Codex App page</a>.
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
+# Codex TaskDriven
+
+This is an unofficial community-maintained derivative of
+[OpenAI Codex CLI](https://github.com/openai/codex). It adds configurable
+task-to-model routing and a set of related resilience and safety improvements.
+It is not affiliated with or endorsed by OpenAI.
+
+The current branch is based on upstream tag `rust-v0.161.0`, commit
+`979011409de0a60b52f179721948e65531d26144`. The upstream Apache-2.0 license,
+copyright notices, and third-party notices are retained. See
+[MODIFICATIONS.md](MODIFICATIONS.md) and
+[license compliance](docs/license-compliance.md) for the exact derivative-work
+record.
 
 ---
+
+## What this fork adds
+
+- **TaskDriven routing:** route writing, investigation, implementation,
+  verification, or custom tasks to independently selected models and reasoning
+  efforts.
+- **Live editing:** edit tasks and their model assignments from the `/model`
+  picker. Available models come from the live model catalog, so future model
+  versions do not require hard-coding into the picker.
+- **Correct model context:** preserve the active model through resume,
+  Guardian review, MCP review, status display, and step-level transitions.
+- **Resilience:** recover interrupted native sessions and optionally write a
+  plain-text transcript to a user-controlled path.
+- **Safety hardening:** do not allow project-level configuration to silently
+  enable unrestricted execution or redirect plain transcripts.
+- **Product fixes:** retain daemon package-channel selection and use current
+  review settings for late background network reviews.
+
+See [Using TaskDriven](docs/taskdriven.md) and the
+[complete fork feature notes](docs/fork-features.md). The tested release gates
+are recorded in [verification results](docs/verification.md).
+
+## Building this fork
+
+The OpenAI installers and package-manager commands further down this README
+install the official upstream release, not this fork. To build this source tree:
+
+```shell
+cd codex-rs
+cargo build --release --bin codex
+./target/release/codex --version
+```
+
+No binary release is published from this repository until its complete
+third-party license bundle and release manifest pass the checks described in
+[license compliance](docs/license-compliance.md).
 
 ## Quickstart
 

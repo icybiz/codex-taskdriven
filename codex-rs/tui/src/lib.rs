@@ -1474,7 +1474,7 @@ async fn run_ratatui_app(
         && final_merged_hardened_settings.yolo == Some(true)
     {
         config.startup_warnings.push(
-            "Eine nicht aus der Benutzerkonfiguration stammende Einstellung `yolo = true` wurde aus Sicherheitsgründen ignoriert."
+            "Ignored `yolo = true` because it did not come from user-owned configuration."
                 .to_string(),
         );
     }
@@ -1482,7 +1482,7 @@ async fn run_ratatui_app(
         && final_merged_hardened_settings.plain_transcript != trusted_plain_transcript
     {
         config.startup_warnings.push(
-            "Ein nicht aus der Benutzerkonfiguration stammendes `plain_transcript`-Ziel wurde aus Sicherheitsgründen ignoriert."
+            "Ignored the `plain_transcript` target because it did not come from user-owned configuration."
                 .to_string(),
         );
     }

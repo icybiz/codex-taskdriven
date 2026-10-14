@@ -292,17 +292,17 @@ mod linux {
     fn recovery_notice(candidate: &InterruptedMarker, current_cwd: &Path) -> String {
         let thread_id = candidate.marker.thread_id.as_deref().unwrap_or_default();
         let reason = match candidate.kind {
-            InterruptionKind::Reboot => "Systemneustart bei laufendem Codex",
-            InterruptionKind::ProcessEnded => "Codex endete ohne sauberen Abschluss",
+            InterruptionKind::Reboot => "system reboot while Codex was running",
+            InterruptionKind::ProcessEnded => "Codex exited without a clean shutdown",
         };
         let interrupted_cwd = display_path(&candidate.marker.cwd);
         let cwd_note = if candidate.marker.cwd == current_cwd {
-            format!("im Arbeitsverzeichnis `{interrupted_cwd}`")
+            format!("in working directory `{interrupted_cwd}`")
         } else {
-            format!("für das Arbeitsverzeichnis `{interrupted_cwd}`")
+            format!("for working directory `{interrupted_cwd}`")
         };
         format!(
-            "Ungeplante Codex-Unterbrechung erkannt ({reason}) {cwd_note}. Die native Sitzung `{thread_id}` ist fortsetzbar. Gib jetzt `/resume {thread_id}` ein, um sie in dieser laufenden Codex-Instanz weiterzuführen; `/resume` öffnet alternativ die Sitzungsauswahl."
+            "Unexpected Codex interruption detected ({reason}) {cwd_note}. Native session `{thread_id}` can be resumed. Enter `/resume {thread_id}` to continue it in this running Codex instance; `/resume` opens the session picker instead."
         )
     }
 
@@ -474,7 +474,7 @@ mod linux {
             };
             let notice = recovery_notice(&candidate, cwd);
             assert!(notice.contains("/resume 019fc937-e0c0-7013-b8de-8f5721c8f027"));
-            assert!(notice.contains("Systemneustart"));
+            assert!(notice.contains("system reboot"));
         }
 
         #[test]
