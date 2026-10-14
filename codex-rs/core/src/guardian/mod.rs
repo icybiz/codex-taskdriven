@@ -157,7 +157,7 @@ impl GuardianReviewContext {
         self
     }
 
-    pub(crate) fn model_context(&self) -> GuardianModelContext {
+    pub(crate) fn guardian_model_context(&self) -> GuardianModelContext {
         GuardianModelContext {
             model_info: Arc::clone(&self.model_info),
             reasoning_effort: self.reasoning_effort.clone(),

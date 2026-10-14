@@ -625,7 +625,7 @@ impl ToolRegistry {
             dispatch_trace.record_failed(&err);
             notify_tool_finish_if_unclaimed(
                 &invocation,
-                terminal_outcome_reached.as_deref(),
+                call_state.as_deref(),
                 ToolCallOutcome::Blocked,
             )
             .await;

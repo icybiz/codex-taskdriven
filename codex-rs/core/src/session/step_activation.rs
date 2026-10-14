@@ -15,8 +15,6 @@ use crate::environment_selection::validate_environment_ids_and_cwds;
 use crate::exec_policy::AllowPrefixRules;
 use codex_features::Feature;
 use codex_prompts::ResolvedModelMessages;
-use codex_protocol::openai_models::GuardianV2ModelConfig;
-use codex_protocol::openai_models::GuardianV2TranscriptModelConfig;
 use codex_protocol::openai_models::MODEL_SPECIALTY_CYBER;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::protocol::EnvironmentConfigState;
@@ -28,7 +26,7 @@ use std::sync::Arc;
 /// Reject a later tool call from a response whose settings were already replaced.
 /// Tools that started before publication keep their captured step context.
 pub(crate) fn step_settings_are_current(step: &StepContext) -> bool {
-    Arc::ptr_eq(&step.settings, &step.turn.current_settings.load_full())
+    Arc::ptr_eq(&step.settings, &step.turn.next_step_settings.load_full())
 }
 
 /// Temporary restrictions while approvals and Guardian still read the admitted
@@ -227,11 +225,7 @@ impl Session {
             let active = self.active_turn.lock().await;
             active.as_ref().and_then(|active| {
                 active.task.as_ref().and_then(|task| {
-                    let current = if expected.is_some() {
-                        task.turn_context.current_settings.load_full()
-                    } else {
-                        task.turn_context.next_step_settings.load_full()
-                    };
+                    let current = task.turn_context.next_step_settings.load_full();
                     (task.turn_context.sub_id == turn_id && !task.cancellation_token.is_cancelled())
                         .then(|| {
                             (
@@ -295,11 +289,7 @@ impl Session {
         // abandons the update without retrying or applying it to the replacement.
         if !Arc::ptr_eq(&task.done, &task_done)
             || !Arc::ptr_eq(&task.turn_context, &turn_context)
-            || if expected.is_some() {
-                !Arc::ptr_eq(&task.turn_context.current_settings.load_full(), &current)
-            } else {
-                !Arc::ptr_eq(&task.turn_context.next_step_settings.load_full(), &current)
-            }
+            || !Arc::ptr_eq(&task.turn_context.next_step_settings.load_full(), &current)
             || task.cancellation_token.is_cancelled()
         {
             return TurnSettingsUpdateOutcome::TargetUnavailable;
@@ -355,13 +345,9 @@ impl Session {
         // Save changed settings first. The manager then installs any new environment list before
         // waking waiting work. The next step cannot read either until we release this lock.
         if let Some(settings) = updated_settings {
-            if expected.is_some() {
-                task.turn_context.current_settings.store(Arc::new(settings));
-            } else {
-                task.turn_context
-                    .next_step_settings
-                    .store(Arc::new(settings));
-            }
+            task.turn_context
+                .next_step_settings
+                .store(Arc::new(settings));
         }
         if environments.is_some() {
             self.services.turn_environments.update_selections(proposed);

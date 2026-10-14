@@ -1,5 +1,6 @@
 use super::ContextualUserFragment;
 use super::world_state::PreviousSectionState;
+use super::world_state::SectionTransition;
 use super::world_state::WorldStateHash;
 use super::world_state::WorldStateSection;
 use codex_protocol::models::ContentItemKind;
@@ -26,12 +27,6 @@ impl WorldStateSection for WorkPhaseInstructions {
     const ID: &'static str = "autonomous_work_phase";
     type Snapshot = WorkPhaseSnapshot;
 
-    fn snapshot(&self) -> Self::Snapshot {
-        WorkPhaseSnapshot {
-            instructions: self.enabled.then(|| WorldStateHash::from_fragment(self)),
-        }
-    }
-
     fn matches_legacy_fragment(role: &str, text: &str) -> bool {
         role == "developer" && Self::matches_text(text)
     }
@@ -47,13 +42,18 @@ impl WorldStateSection for WorkPhaseInstructions {
     fn render_diff(
         &self,
         previous: PreviousSectionState<'_, Self::Snapshot>,
-    ) -> Option<Box<dyn ContextualUserFragment>> {
+    ) -> SectionTransition<Self::Snapshot> {
+        let current = WorkPhaseSnapshot {
+            instructions: self.enabled.then(|| WorldStateHash::from_fragment(self)),
+        };
         let needs_update = match previous {
             PreviousSectionState::Absent => self.enabled,
             PreviousSectionState::Unknown => true,
-            PreviousSectionState::Known(previous) => previous != &self.snapshot(),
+            PreviousSectionState::Known(previous) => previous != &current,
         };
-        needs_update.then(|| Box::new(self.clone()) as Box<dyn ContextualUserFragment>)
+        let fragment =
+            needs_update.then(|| Box::new(self.clone()) as Box<dyn ContextualUserFragment>);
+        (Some(current), fragment)
     }
 }
 

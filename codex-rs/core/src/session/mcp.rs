@@ -773,7 +773,44 @@ async fn review_guardian_mcp_elicitation(
     let Some(mcp_config) = session.services.mcp_runtime.current_config() else {
         return Ok(None);
     };
-    let step_settings = turn_context.next_step_settings.load_full();
+    // A server-supplied id only selects a host-registered call on that server.
+    // Retain its captured settings instead of reading a later work-phase choice.
+    let call_id = request.elicitation.meta().and_then(|meta| {
+        if is_node_repl_backed_server(&request.server_name) {
+            meta.get("callId").and_then(Value::as_str)
+        } else if request.server_name == CODEX_APPS_MCP_SERVER_NAME {
+            meta.get(MCP_TOOL_CODEX_APPS_META_KEY)
+                .and_then(Value::as_object)
+                .and_then(|meta| meta.get("call_id"))
+                .and_then(Value::as_str)
+        } else {
+            None
+        }
+    });
+    let captured_context = if let Some(call_id) = call_id {
+        session
+            .mcp_tool_review_context(&turn_context.sub_id, call_id, &request.server_name)
+            .await
+    } else {
+        None
+    };
+    let mut review_context = match captured_context {
+        Some(context) => context,
+        None if turn_context
+            .config
+            .features
+            .enabled(Feature::StepModelSwitching) =>
+        {
+            // Without a trusted originating call, a model-specific automatic
+            // review is ambiguous. Let the ordinary user elicitation path handle it.
+            return Ok(None);
+        }
+        None => crate::guardian::GuardianReviewContext::from_resolved_settings(
+            Arc::clone(&turn_context),
+            &turn_context.next_step_settings.load_full(),
+            &turn_context.initial_environments,
+        ),
+    };
 
     // User approval skips ordinary CUA checks, not separate sensitive requests.
     let user_cua_execution = review_context.approvals_reviewer == ApprovalsReviewer::User
@@ -789,8 +826,8 @@ async fn review_guardian_mcp_elicitation(
 
     // Full Access skips inference, not the active-turn and cancellation checks.
     if (user_cua_execution
-        || turn_context.initial_environments.has_full_access(
-            turn_context.approval_policy(),
+        || review_context.environments().has_full_access(
+            review_context.approval_policy,
             &turn_context
                 .config
                 .permissions
@@ -816,14 +853,6 @@ async fn review_guardian_mcp_elicitation(
 
     // The invocation identifies the tool event, but a nested elicitation can
     // review a different action and connector than the enclosing JavaScript.
-    let call_id = request
-        .elicitation
-        .meta()
-        .and_then(|meta| match request.server_name.as_str() {
-            CODEX_APPS_MCP_SERVER_NAME => meta.get(MCP_TOOL_CODEX_APPS_META_KEY)?.get("call_id"),
-            _ => meta.get("callId"),
-        })
-        .and_then(Value::as_str);
     let (originating_call_id, guardian_scope) = if let Some(call_id) = call_id
         && let Some((Some(invocation), metadata)) =
             session.mcp_tool_approval_metadata(&request.server_name, call_id)

@@ -85,7 +85,6 @@ pub(crate) async fn decide_approval(
             options,
         },
         approval_id: &review_id,
-        model_info: &context.model_info,
         tool_call_id: request
             .request
             .as_ref()
@@ -115,7 +114,7 @@ pub(crate) async fn decide_approval(
         full_access,
         cancellation: cancellation.clone(),
         // Keep the existing turn-level reporting policy during this ownership move.
-        model: turn.model_info(),
+        model: &context.model_info,
         telemetry: &session.services.session_telemetry,
         log_assessments: turn.config.otel.guardian_assessment_logging_enabled(),
         analytics: &session.services.analytics_events_client,

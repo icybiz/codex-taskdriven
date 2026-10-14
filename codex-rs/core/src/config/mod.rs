@@ -4305,6 +4305,7 @@ impl Config {
         let config = Self {
             prefer_mxc,
             model,
+            model_routing,
             daybreak_enabled: cfg.daybreak.unwrap_or(false),
             service_tier,
             review_model,

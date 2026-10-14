@@ -732,8 +732,6 @@ impl Session {
         context_window_id: uuid::Uuid,
     ) -> CodexResponsesMetadata {
         CodexResponsesMetadata {
-            node_repl_disabled: Some(model_info.node_repl_disabled),
-            node_repl_auto_review_required: Some(model_info.node_repl_auto_review_required),
             window_number: Some(window_number),
             context_window_id: Some(context_window_id),
             mcp_attribution: Some(self.services.executed_tool_calls.mcp_attribution_snapshot()),

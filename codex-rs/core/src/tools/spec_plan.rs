@@ -111,6 +111,7 @@ struct CoreToolPlanContext<'a> {
     tool_policy: &'a codex_extension_api::ToolPolicy,
     turn_context: &'a TurnContext,
     model_info: &'a ModelInfo,
+    model_routing: codex_protocol::config_types::ModelRouting,
     environments: &'a TurnEnvironmentSnapshot,
     mcp: &'a codex_mcp::McpBinding,
     tool_suggest_candidates: Option<&'a crate::tools::router::ToolSuggestCandidates>,
@@ -125,6 +126,7 @@ pub(crate) fn build_tool_router(
     session: &Session,
     turn_context: &TurnContext,
     model_info: &ModelInfo,
+    model_routing: codex_protocol::config_types::ModelRouting,
     environments: &TurnEnvironmentSnapshot,
     mcp: &Arc<codex_mcp::McpBinding>,
     apps_enabled: bool,
@@ -141,6 +143,7 @@ pub(crate) fn build_tool_router(
         tool_policy: &session.tool_policy,
         turn_context,
         model_info,
+        model_routing,
         environments,
         mcp,
         tool_suggest_candidates,
@@ -286,6 +289,12 @@ pub(crate) fn build_core_tool_registry(
         tool_policy: &Default::default(),
         turn_context,
         model_info,
+        model_routing: turn_context
+            .next_step_settings
+            .load()
+            .selected_collaboration_mode()
+            .settings
+            .model_routing,
         environments,
         mcp,
         tool_suggest_candidates,

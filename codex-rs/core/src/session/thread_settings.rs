@@ -13,6 +13,7 @@ use codex_protocol::protocol::ThreadSettingsAppliedEvent;
 use codex_protocol::protocol::ThreadSettingsOverrides;
 use codex_protocol::protocol::ThreadSettingsSnapshot;
 use codex_thread_store::ThreadStoreResult;
+use std::sync::Arc;
 use tokio::sync::SemaphorePermit;
 
 impl Session {
@@ -121,7 +122,7 @@ pub(super) async fn apply_update(
         // remain exact; already captured requests retain their original snapshot.
         let active = session.active_turn.lock().await;
         if let Some(task) = active.as_ref().and_then(|active| active.task.as_ref()) {
-            let current = task.turn_context.current_settings.load_full();
+            let current = task.turn_context.next_step_settings.load_full();
             if current.selected.collaboration_mode.settings.model_routing
                 == codex_protocol::config_types::ModelRouting::TaskDriven
             {
@@ -130,7 +131,7 @@ pub(super) async fn apply_update(
                     .collaboration_mode
                     .settings
                     .model_routing = codex_protocol::config_types::ModelRouting::Fixed;
-                task.turn_context.current_settings.store(Arc::new(fixed));
+                task.turn_context.next_step_settings.store(Arc::new(fixed));
             }
         }
     }

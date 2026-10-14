@@ -1127,7 +1127,8 @@ pub(crate) async fn begin_network_approval(
     }
 
     let controller = turn.config.permissions.network.as_ref();
-    let environment = environments
+    let environment = step
+        .environments
         .turn_environments()
         .find(|environment| environment.selection.environment_id == environment_id);
     let owner_spec = network_policy

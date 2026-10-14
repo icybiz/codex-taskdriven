@@ -158,7 +158,7 @@ async fn guardian_background_model_keeps_current_authority_without_changing_its_
     current.approval_policy = AskForApproval::Never;
     let restored = current
         .clone()
-        .with_model_context(&original.model_context());
+        .with_model_context(&original.guardian_model_context());
     assert_eq!(restored.model_info, original.model_info);
     assert_eq!(restored.reasoning_effort, original.reasoning_effort);
     assert_eq!(restored.reasoning_summary, original.reasoning_summary);

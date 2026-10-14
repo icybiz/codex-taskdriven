@@ -3808,6 +3808,10 @@ impl Session {
                 self.as_ref(),
                 turn_context.as_ref(),
                 &settings.model_info,
+                settings
+                    .selected_collaboration_mode()
+                    .settings
+                    .model_routing,
                 &environments,
                 &mcp,
                 &extension_data,
