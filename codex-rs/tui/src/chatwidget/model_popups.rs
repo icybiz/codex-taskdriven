@@ -152,7 +152,7 @@ impl ChatWidget {
                         None
                     } else {
                         self.session_model_selection_action(
-                            model.clone(),
+                            model,
                             Some(preset.default_reasoning_effort),
                         )
                     },
