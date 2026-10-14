@@ -1510,6 +1510,7 @@ async fn thread_resume_preserves_acknowledged_model_effort_and_approvals_reviewe
         Some(CollaborationMode {
             mode: ModeKind::Plan,
             settings: Settings {
+                model_routing: Default::default(),
                 model: "gpt-5.4".to_string(),
                 reasoning_effort: Some(ReasoningEffort::High),
                 developer_instructions: Some("Persisted plan instructions".to_string())
@@ -1531,6 +1532,7 @@ async fn thread_resume_restores_collaboration_mode_from_legacy_turn_context() ->
     let saved_mode = CollaborationMode {
         mode: ModeKind::Plan,
         settings: Settings {
+            model_routing: Default::default(),
             model: "gpt-5.2-codex".into(),
             reasoning_effort: Some(ReasoningEffort::Low),
             developer_instructions: Some("Legacy plan instructions".into()),
