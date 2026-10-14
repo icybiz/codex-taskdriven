@@ -208,6 +208,7 @@ async fn model_default_saves_report_server_outcomes_and_target_server_profile() 
                 toml::Value::Table(toml::toml! {
                     model = "gpt-5.5"
                     model_reasoning_effort = "medium"
+                    model_routing = "fixed"
                     plan_mode_reasoning_effort = "high"
                     service_tier = "fast"
                 })
