@@ -3252,6 +3252,7 @@ mod tests {
                     turns: Vec::new(),
                 },
                 model: "gpt-5".to_string(),
+                model_routing: Default::default(),
                 model_provider: "openai".to_string(),
                 service_tier: None,
                 cwd,

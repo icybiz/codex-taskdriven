@@ -288,6 +288,7 @@ fn thread_resume_params_accept_turns_page_bootstrap() {
 #[test]
 fn thread_resume_response_round_trips_initial_turns_page() {
     let response = ThreadResumeResponse {
+        active_model: None,
         disabled_plugin_ids: Vec::new(),
         thread: Thread {
             originator: Some("future_client".to_string()),
@@ -334,6 +335,7 @@ fn thread_resume_response_round_trips_initial_turns_page() {
             turns: Vec::new(),
         },
         model: "gpt-5".to_string(),
+        model_routing: Default::default(),
         model_provider: "openai".to_string(),
         service_tier: None,
         cwd: absolute_path("tmp"),
