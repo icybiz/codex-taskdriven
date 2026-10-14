@@ -1891,6 +1891,10 @@ fn config_request_overrides_from_config(
             .as_ref()
             .map(std::string::ToString::to_string),
     );
+    insert(
+        "model_routing",
+        Some(config.model_routing.as_str().to_string()),
+    );
     // Only winning launch choices may replace server defaults or saved thread settings.
     let origins = config.config_layer_stack.origins();
     let effective = config.config_layer_stack.effective_config();

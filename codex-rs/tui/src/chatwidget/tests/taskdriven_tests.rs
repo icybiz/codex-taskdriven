@@ -13,7 +13,7 @@ fn presets(chat: &ChatWidget) -> Vec<ModelPreset> {
     ]
     .into_iter()
     .map(|(model, effort)| {
-        let mut preset = get_available_model(chat, "gpt-5.4");
+        let mut preset = get_available_model(chat, "gpt-5.5");
         preset.id = model.to_string();
         preset.model = model.to_string();
         preset.display_name = model.to_string();
@@ -45,6 +45,9 @@ fn enable_taskdriven(chat: &mut ChatWidget) {
 }
 
 fn expected_status_line_at(model: &str, cwd: &str) -> Option<String> {
+    let model = model
+        .replace("gpt-5.6-sol", "GPT-5.6-Sol")
+        .replace("gpt-6-astra", "GPT-6-Astra");
     Some(format!("{model} · {}", test_path_display(cwd)))
 }
 

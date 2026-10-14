@@ -1,10 +1,11 @@
 ---
 source: tui/src/chatwidget/tests/taskdriven_tests.rs
-assertion_line: 13
+assertion_line: 66
 expression: "render_bottom_popup(&chat, 92)"
 ---
   TaskDriven routing
   Stored in $CODEX_HOME/taskdriven.toml
+
 
   1. Enable TaskDriven                        Start with the configured initial task and
                                               route later phases automatically.
@@ -22,4 +23,4 @@ expression: "render_bottom_popup(&chat, 92)"
                                               effort.
   8. Remove task…                             Delete a configured task.
 
-  Press enter to confirm or esc to go back
+  enter select · esc back

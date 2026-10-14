@@ -2,6 +2,26 @@ use super::*;
 use codex_protocol::config_types::ModelRouting;
 use pretty_assertions::assert_eq;
 
+async fn next_settings_with_routing(
+    app_server: &mut AppServerSession,
+    thread_id: ThreadId,
+    expected: ModelRouting,
+) -> ThreadSettingsUpdatedNotification {
+    for _ in 0..4 {
+        let notification = next_thread_settings_updated(app_server, thread_id).await;
+        if notification
+            .thread_settings
+            .collaboration_mode
+            .settings
+            .model_routing
+            == expected
+        {
+            return notification;
+        }
+    }
+    panic!("expected {expected:?} thread settings for {thread_id}");
+}
+
 #[tokio::test]
 async fn taskdriven_selection_updates_thread_and_persisted_default_and_can_be_disabled()
 -> Result<()> {
@@ -20,7 +40,8 @@ async fn taskdriven_selection_updates_thread_and_persisted_default_and_can_be_di
         let mut tui = crate::tui::test_support::make_test_tui()?;
         app.handle_event(&mut tui, &mut app_server, AppEvent::SelectTaskDriven)
             .await?;
-        let updated = next_thread_settings_updated(&mut app_server, thread_id).await;
+        let updated =
+            next_settings_with_routing(&mut app_server, thread_id, ModelRouting::TaskDriven).await;
         assert_eq!(
             (
                 updated.thread_settings.model,
@@ -64,7 +85,8 @@ async fn taskdriven_selection_updates_thread_and_persisted_default_and_can_be_di
             AppEvent::UpdateModel("gpt-5.6-sol".to_string()),
         )
         .await?;
-        let updated = next_thread_settings_updated(&mut app_server, thread_id).await;
+        let updated =
+            next_settings_with_routing(&mut app_server, thread_id, ModelRouting::Fixed).await;
         assert_eq!(
             updated
                 .thread_settings

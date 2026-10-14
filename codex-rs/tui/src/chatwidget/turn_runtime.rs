@@ -402,6 +402,9 @@ impl ChatWidget {
     }
 
     pub(super) fn on_cyber_policy_error(&mut self) {
+        // A policy rejection is terminal. Restore the submitted prompt and keep
+        // queued input paused instead of immediately retrying the same context.
+        let blocked_prompt = self.safety_buffering_prompt.take();
         let can_enable_daybreak = self.config.features.enabled(Feature::CliDaybreak)
             && self.has_chatgpt_account
             && self.config.model_provider_id == "openai"
@@ -425,7 +428,15 @@ impl ChatWidget {
         self.input_queue.recovered_queue |= queued_input_paused;
         self.flush_answer_stream_with_separator();
         self.finalize_turn();
+        let prompt_restored = blocked_prompt.is_some();
+        if let Some(prompt) = blocked_prompt {
+            self.restore_user_message_to_composer(prompt);
+        }
         self.add_to_history(history_cell::new_cyber_policy_error_event(notice));
+        self.add_to_history(history_cell::new_cyber_policy_recovery_event(
+            prompt_restored,
+            queued_input_paused,
+        ));
         if notice == crate::daybreak::Notice::Disabled
             && !self.thread_usage.replaying_turn_completion
             && !self.blocks_direct_input
@@ -455,6 +466,11 @@ impl ChatWidget {
             });
             self.defer_input_until_settings_applied();
         }
+        self.refresh_pending_input_preview();
+        self.set_ambient_pet_notification(
+            crate::pets::PetNotificationKind::Failed,
+            /*body*/ None,
+        );
         self.request_redraw();
     }
 

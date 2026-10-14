@@ -1,14 +1,15 @@
 ---
 source: tui/src/chatwidget/tests/taskdriven_tests.rs
+assertion_line: 149
 expression: normalized_backend_snapshot(terminal.backend())
 ---
 "                                                                                                              "
 "                                                                                                              "
 "  Select Model and Effort                                                                                     "
-"  Access legacy models by running codex -m <model_name> or in your config.toml                                "
+"                                                                                                              "
 "                                                                                                              "
 "› 1. TaskDriven (current)  Route 4 editable tasks by phase · starts with gpt-5.6-sol/xhigh                    "
 "  2. gpt-5.6-sol                                                                                              "
 "  3. gpt-6-astra                                                                                              "
 "                                                                                                              "
-"  Press enter to confirm or esc to go back                                                                    "
+"  enter select · esc back                                                                                     "

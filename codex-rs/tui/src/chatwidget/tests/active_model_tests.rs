@@ -20,6 +20,9 @@ fn notification(
 }
 
 fn expected_status_line(model: &str, cwd: &str) -> Option<String> {
+    let model = model
+        .replace("gpt-5.6-sol", "GPT-5.6-Sol")
+        .replace("gpt-6-astra", "GPT-6-Astra");
     Some(format!("{model} · {}", test_path_display(cwd)))
 }
 
@@ -93,7 +96,7 @@ async fn active_model_switch_refreshes_footer_and_announces_both_directions() {
     );
     let history = drain_insert_history(&mut rx);
     assert!(
-        lines_to_single_string(&history.concat()).contains("gpt-6-astra max → gpt-5.6-sol xhigh")
+        lines_to_single_string(&history.concat()).contains("GPT-6-Astra max → GPT-5.6-Sol xhigh")
     );
 }
 
@@ -176,7 +179,7 @@ async fn active_model_next_turn_restores_captured_default_and_reasoning_only_cha
     );
     assert!(
         lines_to_single_string(&drain_insert_history(&mut rx).concat())
-            .contains("gpt-5.6-sol xhigh → gpt-5.6-sol high")
+            .contains("GPT-5.6-Sol xhigh → GPT-5.6-Sol high")
     );
 }
 
@@ -206,7 +209,7 @@ async fn active_model_reroute_is_visible_and_manual_idle_selection_can_replace_i
     );
     assert!(
         lines_to_single_string(&drain_insert_history(&mut rx).concat())
-            .contains("gpt-6-astra max → gpt-5.2 max")
+            .contains("GPT-6-Astra max → gpt-5.2 max")
     );
     chat.set_model("gpt-5.6-sol");
     chat.set_reasoning_effort(Some(ReasoningEffortConfig::XHigh));

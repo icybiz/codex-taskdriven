@@ -30,7 +30,13 @@ impl HistoryCell for UpdateAvailableHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         use ratatui_macros::line;
         use ratatui_macros::text;
-        let update_instruction = if let Some(update_action) = self.update_action {
+        let update_instruction = if crate::version::IS_HARDENED_BUILD {
+            line![
+                "Rebuild and deploy the hardened Codex centrally from ",
+                crate::version::HARDENED_UPDATE_ORIGIN.fg(accent_color()),
+                "; do not self-update this binary."
+            ]
+        } else if let Some(update_action) = self.update_action {
             line![
                 "Run ",
                 update_action.command_str().fg(accent_color()),
@@ -222,7 +228,7 @@ pub(crate) fn new_cyber_policy_recovery_event(
     message.push_str(
         " Do not resubmit the blocked request unchanged or ask the model to explain the rejection. If the remaining task can be stated independently within the applicable policy, continue in a fresh thread from a short, human-reviewed handover. A fresh thread does not change the applicable policy.",
     );
-    new_warning_event(message)
+    new_usage_warning_event(message)
 }
 
 impl HistoryCell for SafetyAccessBlockCell {

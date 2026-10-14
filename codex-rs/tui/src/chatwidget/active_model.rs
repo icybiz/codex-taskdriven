@@ -54,19 +54,25 @@ impl ChatWidget {
         {
             return;
         }
-        let previous_model = self.model_display_name().to_string();
+        let previous_model = self
+            .turn_lifecycle
+            .active_model
+            .as_ref()
+            .map_or_else(|| self.current_model(), |active| active.model.as_str())
+            .to_string();
         let previous_effort = self.displayed_reasoning_effort();
         let changed =
             previous_model != notification.model || previous_effort != notification.effort;
         if changed {
+            let previous_model = self.model_catalog.display_name(&previous_model);
+            let next_model = self.model_catalog.display_name(&notification.model);
             let previous_effort =
                 Self::status_line_reasoning_effort_label(previous_effort.as_ref());
             let next_effort =
                 Self::status_line_reasoning_effort_label(notification.effort.as_ref());
             self.add_info_message(
                 format!(
-                    "Model changed: {previous_model} {previous_effort} → {} {next_effort}.",
-                    notification.model,
+                    "Model changed: {previous_model} {previous_effort} → {next_model} {next_effort}.",
                 ),
                 /*hint*/ None,
             );
