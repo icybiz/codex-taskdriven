@@ -51,8 +51,14 @@ use codex_utils_path::replace_path_and_deduplicate;
 use std::sync::OnceLock;
 use tokio::sync::Semaphore;
 
-type McpToolApprovalMetadataMap =
-    HashMap<(String, String), std::sync::Weak<(Option<McpInvocation>, McpToolApprovalMetadata)>>;
+type McpToolApprovalMetadataMap = HashMap<
+    (String, String),
+    std::sync::Weak<(
+        Option<McpInvocation>,
+        McpToolApprovalMetadata,
+        Option<crate::guardian::GuardianReviewContext>,
+    )>,
+>;
 
 /// Context for an initialized model agent
 ///
