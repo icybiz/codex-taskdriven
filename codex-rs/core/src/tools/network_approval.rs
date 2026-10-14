@@ -235,7 +235,6 @@ impl PendingHostApproval {
 }
 
 struct ActiveNetworkApprovalCall {
-    model_context: crate::guardian::GuardianModelContext,
     registration_id: String,
     turn_id: String,
     trigger: GuardianNetworkAccessTrigger,
@@ -730,17 +729,16 @@ impl NetworkApprovalService {
             pending_owner.complete(PendingApprovalDecision::Deny);
             return NetworkDecision::deny(REASON_NOT_ALLOWED);
         }
-        let mut review_context = GuardianReviewContext::from_resolved_settings(
+        let review_context = GuardianReviewContext::from_resolved_settings(
             Arc::clone(&turn_context),
             &settings,
             review_environments,
         );
-        if let Some(call) = owner_call.as_ref() {
-            review_context = review_context.with_model_context(&call.model_context);
-        } else if turn_context
-            .config
-            .features
-            .enabled(codex_features::Feature::StepModelSwitching)
+        if owner_call.is_none()
+            && turn_context
+                .config
+                .features
+                .enabled(codex_features::Feature::StepModelSwitching)
         {
             // Unattributed traffic cannot borrow another model's review policy.
             pending_owner.complete(PendingApprovalDecision::Deny);
@@ -1232,7 +1230,6 @@ pub(crate) async fn begin_network_approval(
         .services
         .network_approval
         .register_call(ActiveNetworkApprovalCall {
-            model_context: crate::guardian::GuardianModelContext::from_settings(&step.settings),
             registration_id: registration_id.clone(),
             turn_id: turn.sub_id.clone(),
             trigger,

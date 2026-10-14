@@ -622,13 +622,6 @@ async fn register_call_with_default_shell_trigger(
     let cancellation_token = CancellationToken::new();
     service
         .register_call(ActiveNetworkApprovalCall {
-            model_context: crate::guardian::GuardianModelContext {
-                model_info: Arc::new(codex_models_manager::model_info::model_info_from_slug(
-                    "gpt-5.4",
-                )),
-                reasoning_effort: None,
-                reasoning_summary: Default::default(),
-            },
             registration_id: registration_id.to_string(),
             turn_id: "turn-1".to_string(),
             tool_name: ToolName::plain("exec_command"),
@@ -669,13 +662,6 @@ async fn active_call_preserves_triggering_command_context() {
 
     service
         .register_call(ActiveNetworkApprovalCall {
-            model_context: crate::guardian::GuardianModelContext {
-                model_info: Arc::new(codex_models_manager::model_info::model_info_from_slug(
-                    "gpt-5.4",
-                )),
-                reasoning_effort: None,
-                reasoning_summary: Default::default(),
-            },
             registration_id: "registration-1".to_string(),
             turn_id: "turn-1".to_string(),
             trigger: expected.clone(),
