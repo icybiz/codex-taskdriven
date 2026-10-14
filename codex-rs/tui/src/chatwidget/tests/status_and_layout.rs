@@ -131,11 +131,25 @@ async fn app_server_cyber_policy_error_renders_dedicated_notice() {
     );
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1);
-    let rendered = lines_to_single_string(&cells[0]);
+    assert_eq!(cells.len(), 2);
+    let rendered = cells
+        .iter()
+        .map(|cell| lines_to_single_string(cell))
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(rendered.contains("This content can’t be shown"));
     assert!(rendered.contains("We take extra care with some cybersecurity requests"));
     assert!(rendered.contains("Apply for Daybreak"));
+    assert!(rendered.contains("CON did not retry this turn"));
+    assert!(rendered.contains("fresh thread"));
+    let rendered_without_whitespace = rendered
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    assert!(
+        rendered_without_whitespace
+            .contains("openai.com/form/enterprise-trusted-access-for-cyber/")
+    );
     assert!(!rendered.contains("server fallback message"));
 }
 

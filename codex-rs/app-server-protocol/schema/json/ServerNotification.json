@@ -3096,6 +3096,12 @@
         "reason": {
           "$ref": "#/definitions/ModelRerouteReason"
         },
+        "sequence": {
+          "description": "Monotonic model-state sequence within this turn; zero is a legacy event.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
         "threadId": {
           "type": "string"
         },
@@ -3114,6 +3120,14 @@
         "turnId"
       ],
       "type": "object"
+    },
+    "ModelRouting": {
+      "description": "Only TaskDriven enables automatic work-phase transitions. Older settings without a routing policy retain ordinary fixed-model behavior.",
+      "enum": [
+        "fixed",
+        "taskDriven"
+      ],
+      "type": "string"
     },
     "ModelSafetyBufferingUpdatedNotification": {
       "properties": {
@@ -3947,6 +3961,15 @@
         },
         "model": {
           "type": "string"
+        },
+        "modelRouting": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ModelRouting"
+            }
+          ],
+          "default": "fixed",
+          "description": "Automatic routing is explicitly selected independently of the real model."
         },
         "reasoning_effort": {
           "anyOf": [
@@ -6508,6 +6531,42 @@
         }
       ]
     },
+    "TurnModelUpdatedNotification": {
+      "description": "Captured inference settings, emitted before response output. Repeated requests may report the same settings. Persistent thread defaults are unchanged.",
+      "properties": {
+        "effort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReasoningEffort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "sequence": {
+          "description": "Monotonic model-state sequence within this turn; zero is a legacy event.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "TurnModerationMetadataNotification": {
       "properties": {
         "metadata": true,
@@ -8164,6 +8223,26 @@
         "params"
       ],
       "title": "Model/reroutedNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "turn/model/updated"
+          ],
+          "title": "Turn/model/updatedNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/TurnModelUpdatedNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Turn/model/updatedNotification",
       "type": "object"
     },
     {

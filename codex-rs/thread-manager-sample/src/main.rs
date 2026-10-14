@@ -281,6 +281,7 @@ async fn new_config(
         include_environment_context: false,
         compact_prompt: None,
         notify: None,
+        plain_transcript: None,
         tui_notifications: TuiNotificationSettings::default(),
         animations: true,
         tui_effects: Default::default(),

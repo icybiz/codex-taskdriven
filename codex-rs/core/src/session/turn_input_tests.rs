@@ -187,6 +187,7 @@ async fn accepted_input_applies_thread_settings() {
             collaboration_mode: Some(CollaborationMode {
                 mode: ModeKind::Default,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: turn_context.model_info().slug.clone(),
                     reasoning_effort: config.model_reasoning_effort.clone(),
                     developer_instructions: None,
@@ -410,6 +411,7 @@ async fn prepared_user_updates_merge_with_settings_at_turn_start() {
         let initial = CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model: "gpt-5.4".to_string(),
                 reasoning_effort: Some(ReasoningEffort::Low),
                 developer_instructions: None,

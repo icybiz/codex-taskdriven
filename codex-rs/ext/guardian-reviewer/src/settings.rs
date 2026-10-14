@@ -86,6 +86,7 @@ impl ReviewerTurn {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: codex_protocol::config_types::ModelRouting::Fixed,
                         model: self.model,
                         reasoning_effort: self.reasoning_effort,
                         developer_instructions: None,

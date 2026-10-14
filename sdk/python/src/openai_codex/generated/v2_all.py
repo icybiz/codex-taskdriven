@@ -2834,9 +2834,21 @@ class ModelReroutedNotification(BaseModel):
     )
     from_model: Annotated[str, Field(alias="fromModel")]
     reason: ModelRerouteReason
+    sequence: Annotated[
+        int | None,
+        Field(
+            description="Monotonic model-state sequence within this turn; zero is a legacy event.",
+            ge=0,
+        ),
+    ] = None
     thread_id: Annotated[str, Field(alias="threadId")]
     to_model: Annotated[str, Field(alias="toModel")]
     turn_id: Annotated[str, Field(alias="turnId")]
+
+
+class ModelRouting(Enum):
+    fixed = "fixed"
+    task_driven = "taskDriven"
 
 
 class ModelSafetyBufferingUpdatedNotification(BaseModel):
@@ -4841,6 +4853,13 @@ class Settings(BaseModel):
     )
     developer_instructions: str | None = None
     model: str
+    model_routing: Annotated[
+        ModelRouting | None,
+        Field(
+            alias="modelRouting",
+            description="Automatic routing is explicitly selected independently of the real model.",
+        ),
+    ] = "fixed"
     reasoning_effort: ReasoningEffort | None = None
 
 
@@ -6340,6 +6359,23 @@ class TurnItemsView(Enum):
     full = "full"
 
 
+class TurnModelUpdatedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    effort: ReasoningEffort | None = None
+    model: str
+    sequence: Annotated[
+        int | None,
+        Field(
+            description="Monotonic model-state sequence within this turn; zero is a legacy event.",
+            ge=0,
+        ),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+    turn_id: Annotated[str, Field(alias="turnId")]
+
+
 class TurnModerationMetadataNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -6681,6 +6717,21 @@ class AccountUpdatedNotification(BaseModel):
     )
     auth_mode: Annotated[AuthMode | None, Field(alias="authMode")] = None
     plan_type: Annotated[PlanType | None, Field(alias="planType")] = None
+
+
+class ActiveTurnModel(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    effort: ReasoningEffort | None = None
+    model: str
+    sequence: Annotated[
+        int,
+        Field(
+            description="Monotonic model-state sequence shared with live model notifications.", ge=0
+        ),
+    ]
+    turn_id: Annotated[str, Field(alias="turnId")]
 
 
 class AdditionalContextEntry(BaseModel):
@@ -12193,6 +12244,13 @@ class ThreadForkResponse(BaseModel):
     ] = []
     model: str
     model_provider: Annotated[str, Field(alias="modelProvider")]
+    model_routing: Annotated[
+        ModelRouting | None,
+        Field(
+            alias="modelRouting",
+            description="Selection policy for future turns; `model` remains a concrete model.",
+        ),
+    ] = "fixed"
     reasoning_effort: Annotated[ReasoningEffort | None, Field(alias="reasoningEffort")] = None
     sandbox: Annotated[
         SandboxPolicy,
@@ -12243,6 +12301,13 @@ class ThreadResumeResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    active_model: Annotated[
+        ActiveTurnModel | None,
+        Field(
+            alias="activeModel",
+            description="Last model actually requested by the live turn, independent of future settings.",
+        ),
+    ] = None
     approval_policy: Annotated[AskForApproval, Field(alias="approvalPolicy")]
     approvals_reviewer: Annotated[
         ApprovalsReviewer,
@@ -12282,6 +12347,13 @@ class ThreadResumeResponse(BaseModel):
     ] = None
     model: str
     model_provider: Annotated[str, Field(alias="modelProvider")]
+    model_routing: Annotated[
+        ModelRouting | None,
+        Field(
+            alias="modelRouting",
+            description="Selection policy for future turns; `model` remains a concrete model.",
+        ),
+    ] = "fixed"
     reasoning_effort: Annotated[ReasoningEffort | None, Field(alias="reasoningEffort")] = None
     sandbox: Annotated[
         SandboxPolicy,
@@ -12363,6 +12435,13 @@ class ThreadStartResponse(BaseModel):
     ] = []
     model: str
     model_provider: Annotated[str, Field(alias="modelProvider")]
+    model_routing: Annotated[
+        ModelRouting | None,
+        Field(
+            alias="modelRouting",
+            description="Selection policy for future turns; `model` remains a concrete model.",
+        ),
+    ] = "fixed"
     reasoning_effort: Annotated[ReasoningEffort | None, Field(alias="reasoningEffort")] = None
     sandbox: Annotated[
         SandboxPolicy,
@@ -12981,6 +13060,7 @@ class ServerNotification(
         | ItemReasoningTextDeltaServerNotification
         | ThreadCompactedServerNotification
         | ModelReroutedServerNotification
+        | TurnModelUpdatedServerNotification
         | ModelVerificationServerNotification
         | ModelProviderAuthRecoveryStartedServerNotification
         | ModelProviderAuthRecoveryCompletedServerNotification
@@ -13071,6 +13151,7 @@ class ServerNotification(
         | ItemReasoningTextDeltaServerNotification
         | ThreadCompactedServerNotification
         | ModelReroutedServerNotification
+        | TurnModelUpdatedServerNotification
         | ModelVerificationServerNotification
         | ModelProviderAuthRecoveryStartedServerNotification
         | ModelProviderAuthRecoveryCompletedServerNotification

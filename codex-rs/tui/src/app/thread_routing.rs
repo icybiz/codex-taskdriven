@@ -901,7 +901,7 @@ impl App {
                         explicit_profile
                             .and_then(RuntimePermissionProfileOverride::turn_permission_profile),
                     );
-                    let response = app_server
+                    let response = match app_server
                         .turn_start(
                             thread_id,
                             client_user_message_id.clone(),
@@ -919,7 +919,33 @@ impl App {
                             final_output_json_schema.clone(),
                             cyber_access_program.map(Into::into),
                         )
-                        .await?;
+                        .await
+                    {
+                        Ok(response) => response,
+                        Err(error) => {
+                            // External app-server transport failures must reach the
+                            // application-level reconnect state machine. It preserves an
+                            // ambiguously delivered mutation without resubmitting it after
+                            // reconnect. Server-side turn/start rejections still use the
+                            // hardened local draft restoration below.
+                            if matches!(
+                                error.downcast_ref::<TypedRequestError>(),
+                                Some(TypedRequestError::Transport { .. })
+                            ) {
+                                return Err(error);
+                            }
+                            let error_detail = format!("{error:#}");
+                            tracing::error!(
+                                thread_id = %thread_id,
+                                error = %error_detail,
+                                "turn/start failed without terminating the TUI"
+                            );
+                            self.chat_widget.on_turn_start_failed(format!(
+                                "Unable to start the turn; the TUI session is still alive and the submitted draft was restored. Delivery may be ambiguous, so inspect the thread before submitting the draft again to avoid a duplicate turn. {error_detail}"
+                            ));
+                            return Ok(true);
+                        }
+                    };
                     if self.active_thread_id == Some(thread_id)
                         && self.chat_widget.thread_id() == Some(thread_id)
                     {
@@ -1589,6 +1615,9 @@ impl App {
         if self.primary_thread_id != Some(thread_id) {
             self.recap.reset_for_new_thread(Instant::now());
         }
+        let recovery_update = self
+            .interruption_recovery
+            .update_session(thread_id, session.cwd.as_path());
         self.primary_thread_id = Some(thread_id);
         self.agents_overview.hidden_threads.remove(&thread_id);
         self.agents_overview.threads.entry(thread_id).or_default();
@@ -1614,6 +1643,12 @@ impl App {
             | ThreadAttachPresentation::SessionLineage => {
                 self.chat_widget.handle_thread_session(session);
             }
+        }
+        if let Err(err) = recovery_update {
+            tracing::error!(error = %err, %thread_id, "failed to persist active recovery session");
+            self.chat_widget.add_warning_message(format!(
+                "Codex kann diesen Lauf nicht für eine Wiederaufnahme nach Absturz vormerken: {err}"
+            ));
         }
         let should_buffer_initial_replay = !turns.is_empty();
         let replayed_final_items = realtime_delivery::completed_agent_items_from_turns(&turns);
@@ -1950,6 +1985,11 @@ impl App {
         if !snapshot.turns.is_empty() {
             self.chat_widget
                 .replay_thread_turns(snapshot.turns, ReplayKind::ThreadSnapshot);
+        }
+        // Historical completions and local input restoration cannot clear a live
+        // server snapshot. New buffered lifecycle events still take precedence.
+        if let Some(model) = resumed_live_model {
+            self.chat_widget.restore_active_model_snapshot(model);
         }
         for (event, changes) in snapshot.events.into_iter().zip(request_changes) {
             reasoning_replay.before_event(&event, &mut self.chat_widget);

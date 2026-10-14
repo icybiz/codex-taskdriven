@@ -123,6 +123,7 @@ async fn refresh_models_on_models_etag_mismatch_and_avoid_duplicate_models_fetch
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,

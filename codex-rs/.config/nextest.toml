@@ -60,6 +60,12 @@ filter = 'package(codex-exec) & test(worktree_start_and_fork_use_host_pool_and_p
 slow-timeout = { period = "30s", terminate-after = 4 }
 
 [[profile.default.overrides]]
+# This debug-only source scan takes about 55 seconds on the release-build host
+# even when run by itself. Give it headroom when another test shares the CPU.
+filter = 'package(codex-tui) & test(animation_primitives_are_only_used_by_motion_module)'
+slow-timeout = { period = "1m", terminate-after = 2 }
+
+[[profile.default.overrides]]
 filter = 'test(approval_matrix_covers_all_modes)'
 slow-timeout = { period = "30s", terminate-after = 2 }
 

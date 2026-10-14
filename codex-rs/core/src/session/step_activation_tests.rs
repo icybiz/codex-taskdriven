@@ -37,8 +37,6 @@ use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::config_types::ServiceTier;
 use codex_protocol::openai_models::AutoReviewMessages;
-use codex_protocol::openai_models::GuardianV2ModelConfig;
-use codex_protocol::openai_models::GuardianV2TranscriptModelConfig;
 use codex_protocol::openai_models::ModelTokenBudgetConfig;
 use codex_protocol::openai_models::ModelsResponse;
 use codex_protocol::openai_models::ReasoningEffort;
@@ -1190,13 +1188,11 @@ fn parent_review_messages(model: &mut ModelInfo) -> &mut AutoReviewMessages {
 #[derive(Clone, Copy)]
 enum ModelSafetyChange {
     Cyber,
-    NodeReplReview,
     NodeReplDisabled,
     ReviewerOverride,
 }
 
 #[test_case(ModelSafetyChange::Cyber, "the destination changes the admitted Guardian rejection policy"; "Cyber rejection policy")]
-#[test_case(ModelSafetyChange::NodeReplReview, "the destination changes the admitted node REPL review requirement"; "node REPL review")]
 #[test_case(ModelSafetyChange::NodeReplDisabled, "the destination changes the admitted node REPL availability restriction"; "node REPL availability")]
 #[test_case(ModelSafetyChange::ReviewerOverride, "the destination changes the explicit Guardian reviewer model"; "explicit reviewer")]
 #[tokio::test]
@@ -1210,7 +1206,6 @@ async fn model_safety_changes_must_match_the_admitted_authority(
         ModelSafetyChange::Cyber => {
             destination.model_specialty = Some(MODEL_SPECIALTY_CYBER.to_string());
         }
-        ModelSafetyChange::NodeReplReview => destination.node_repl_auto_review_required = true,
         ModelSafetyChange::NodeReplDisabled => destination.node_repl_disabled = true,
         ModelSafetyChange::ReviewerOverride => {
             destination.auto_review_model_override = Some("required-reviewer".to_string());
@@ -1346,155 +1341,4 @@ async fn unchanged_explicit_reviewer_does_not_use_parent_policy() {
         ),
         Ok(())
     );
-}
-
-#[test_case(GuardianV2ModelConfig {
-    classifier_instructions: Some("Review the complete action.".to_string()),
-    ..Default::default()
-}; "classifier instructions")]
-#[test_case(GuardianV2ModelConfig {
-    review_threshold_basis_points: Some(6_000),
-    ..Default::default()
-}; "review threshold")]
-#[test_case(GuardianV2ModelConfig {
-    reasoning_effort: Some(ReasoningEffort::High),
-    ..Default::default()
-}; "classifier effort")]
-#[test_case(GuardianV2ModelConfig {
-    transcript: Some(GuardianV2TranscriptModelConfig {
-        sources: Some(vec!["reasoning".to_string()]),
-        ..Default::default()
-    }),
-    ..Default::default()
-}; "transcript sources")]
-#[test_case(GuardianV2ModelConfig {
-    transcript: Some(GuardianV2TranscriptModelConfig {
-        max_message_entry_tokens: Some(128),
-        ..Default::default()
-    }),
-    ..Default::default()
-}; "transcript bounds")]
-#[test_case(GuardianV2ModelConfig {
-    max_action_tokens: Some(128),
-    ..Default::default()
-}; "action limit")]
-#[test_case(GuardianV2ModelConfig {
-    max_classifier_instruction_tokens: Some(256),
-    ..Default::default()
-}; "classifier instruction limit")]
-#[test_case(GuardianV2ModelConfig {
-    max_parent_compaction_tokens: Some(384),
-    ..Default::default()
-}; "parent compaction limit")]
-#[tokio::test]
-async fn guardian_v2_classification_settings_match_the_admitted_authority(
-    destination_settings: GuardianV2ModelConfig,
-) {
-    let (_, turn) = make_session_and_context().await;
-    let mut config = turn.config.as_ref().clone();
-    for feature in [Feature::GuardianV2, Feature::GuardianApproval] {
-        config
-            .features
-            .set_enabled(feature, /*enabled*/ true)
-            .expect("enable Guardian V2");
-    }
-    // V2 classification does not depend on the default approval reviewer or
-    // the explicitly selected model used to resolve the security policy.
-    config.approvals_reviewer = ApprovalsReviewer::User;
-    let (mut admitted, mut destination) = safety_models();
-    destination
-        .model_messages
-        .as_mut()
-        .expect("model messages")
-        .guardian_v2 = Some(destination_settings);
-    for reviewer_override in [None, Some("shared-reviewer".to_string())] {
-        admitted.auto_review_model_override = reviewer_override.clone();
-        destination.auto_review_model_override = reviewer_override;
-        for current in [&admitted, &destination] {
-            assert_eq!(
-                check_legacy_model_safety(&admitted, current, &destination, &config, &config,),
-                Err(
-                    "the destination changes the admitted Guardian V2 classification settings"
-                        .to_string()
-                )
-            );
-        }
-    }
-}
-
-#[test_case(false, true; "Guardian V2 disabled")]
-#[test_case(true, false; "Guardian approval disabled")]
-#[tokio::test]
-async fn inactive_guardian_v2_does_not_restrict_model_defaults(
-    guardian_v2_enabled: bool,
-    guardian_approval_enabled: bool,
-) {
-    let (_, turn) = make_session_and_context().await;
-    let mut admitted_config = turn.config.as_ref().clone();
-    admitted_config
-        .features
-        .set_enabled(Feature::GuardianV2, guardian_v2_enabled)
-        .expect("configure admitted Guardian V2");
-    admitted_config
-        .features
-        .set_enabled(Feature::GuardianApproval, guardian_approval_enabled)
-        .expect("configure admitted Guardian approval");
-    let mut live_config = admitted_config.clone();
-    for feature in [Feature::GuardianV2, Feature::GuardianApproval] {
-        live_config
-            .features
-            .set_enabled(feature, /*enabled*/ true)
-            .expect("enable live Guardian V2");
-    }
-    let (admitted, mut destination) = safety_models();
-    let destination_settings = GuardianV2ModelConfig {
-        review_threshold_basis_points: Some(6_000),
-        ..Default::default()
-    };
-    destination
-        .model_messages
-        .as_mut()
-        .expect("model messages")
-        .guardian_v2 = Some(destination_settings);
-    assert_eq!(
-        check_legacy_model_safety(
-            &admitted,
-            &admitted,
-            &destination,
-            &admitted_config,
-            &live_config,
-        ),
-        Ok(())
-    );
-}
-
-#[tokio::test]
-async fn guardian_v2_empty_model_defaults_are_equivalent() {
-    let (_, turn) = make_session_and_context().await;
-    let mut config = turn.config.as_ref().clone();
-    for feature in [Feature::GuardianV2, Feature::GuardianApproval] {
-        config
-            .features
-            .set_enabled(feature, /*enabled*/ true)
-            .expect("enable Guardian V2");
-    }
-    let (admitted, mut destination) = safety_models();
-    destination.context_window = Some(123_456);
-    for settings in [
-        GuardianV2ModelConfig::default(),
-        GuardianV2ModelConfig {
-            transcript: Some(GuardianV2TranscriptModelConfig::default()),
-            ..Default::default()
-        },
-    ] {
-        destination
-            .model_messages
-            .as_mut()
-            .expect("model messages")
-            .guardian_v2 = Some(settings);
-        assert_eq!(
-            check_legacy_model_safety(&admitted, &admitted, &destination, &config, &config,),
-            Ok(())
-        );
-    }
 }

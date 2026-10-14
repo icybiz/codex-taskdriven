@@ -2034,6 +2034,7 @@ impl App {
                 }
             }
             AppEvent::UpdateReasoningEffort(effort) => {
+                self.config.model_routing = codex_protocol::config_types::ModelRouting::Fixed;
                 self.on_update_reasoning_effort(effort.clone());
                 self.sync_active_thread_reasoning_setting(app_server, effort)
                     .await;
@@ -2051,8 +2052,10 @@ impl App {
                     return Ok(AppRunControl::Continue);
                 }
                 let model_changed = self.chat_widget.current_model() != model
-                    || self.chat_widget.current_collaboration_mode().model() != model;
+                    || self.chat_widget.current_collaboration_mode().model() != model
+                    || self.chat_widget.taskdriven_selected();
                 if model_changed {
+                    self.config.model_routing = codex_protocol::config_types::ModelRouting::Fixed;
                     self.chat_widget.set_model(&model);
                     self.sync_active_thread_model_setting(app_server, model, /*effort*/ None)
                         .await;
@@ -2176,6 +2179,7 @@ impl App {
                     ),
                 }
             }
+            AppEvent::SelectTaskDriven => self.select_taskdriven(app_server).await,
             AppEvent::SettingsSelectionClosed => {
                 self.app_event_tx.send(AppEvent::SettingsSelectionSettled);
             }

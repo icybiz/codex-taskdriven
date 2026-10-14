@@ -195,6 +195,7 @@ async fn copy_paste_local_image_persists_rollout_request_shape() -> anyhow::Resu
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -293,6 +294,7 @@ async fn drag_drop_image_persists_rollout_request_shape() -> anyhow::Result<()> 
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,

@@ -339,6 +339,7 @@ async fn start_install_turn(test: &TestCodex, prompt: &str) -> Result<Elicitatio
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

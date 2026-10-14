@@ -975,7 +975,7 @@ impl ChatWidget {
     }
 
     fn reasoning_display_name(&self) -> String {
-        let effort = self.effective_reasoning_effort();
+        let effort = self.displayed_reasoning_effort();
         Self::status_line_reasoning_effort_label(effort.as_ref())
     }
 

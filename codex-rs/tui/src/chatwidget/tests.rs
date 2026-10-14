@@ -226,6 +226,8 @@ fn next_goal_draft(
     }
 }
 
+#[path = "tests/active_model_tests.rs"]
+mod active_model_tests;
 mod app_server;
 mod approval_requests;
 #[path = "tests/backend_banners_tests.rs"]

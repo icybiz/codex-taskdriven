@@ -247,6 +247,7 @@ async fn prompt_tools_are_consistent_across_requests(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Plan,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: "gpt-5.5".to_string(),
                         reasoning_effort: None,
                         developer_instructions: Some(mode_instructions.clone()),
@@ -617,6 +618,7 @@ async fn override_before_first_turn_emits_environment_context() -> anyhow::Resul
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model: "gpt-5.4".to_string(),
             reasoning_effort: Some(ReasoningEffort::High),
             developer_instructions: None,
@@ -932,6 +934,7 @@ async fn send_user_turn_with_no_changes_does_not_send_environment_context() -> a
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: default_model.clone(),
                         reasoning_effort: default_effort.clone(),
                         developer_instructions: None,
@@ -957,6 +960,7 @@ async fn send_user_turn_with_no_changes_does_not_send_environment_context() -> a
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: default_model.clone(),
                         reasoning_effort: default_effort,
                         developer_instructions: None,
@@ -1066,6 +1070,7 @@ async fn send_user_turn_with_changes_sends_environment_context() -> anyhow::Resu
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: default_model,
                         reasoning_effort: default_effort,
                         developer_instructions: None,
@@ -1094,6 +1099,7 @@ async fn send_user_turn_with_changes_sends_environment_context() -> anyhow::Resu
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: "o3".to_string(),
                         reasoning_effort: Some(ReasoningEffort::High),
                         developer_instructions: None,

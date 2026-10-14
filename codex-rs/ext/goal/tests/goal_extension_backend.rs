@@ -2056,6 +2056,7 @@ fn default_collaboration_mode() -> CollaborationMode {
     CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model: "gpt-5".to_string(),
             reasoning_effort: None,
             developer_instructions: None,

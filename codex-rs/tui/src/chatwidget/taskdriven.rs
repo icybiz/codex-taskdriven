@@ -1,24 +1,33 @@
+//! Editable TaskDriven routing backed by an external configuration file.
+
 use super::*;
+use codex_protocol::config_types::ModelRouting;
 use codex_taskdriven::TaskDefinition;
 use codex_taskdriven::TaskDrivenConfig;
 
 const TASKDRIVEN_SELECTION_VIEW_ID: &str = "taskdriven-selection";
 
 impl ChatWidget {
-    pub(super) fn taskdriven_selected(&self) -> bool {
-        codex_taskdriven::instructions_are_enabled(
-            self.effective_collaboration_mode()
-                .settings
-                .developer_instructions
-                .as_deref(),
-        )
+    pub(crate) fn taskdriven_selected(&self) -> bool {
+        self.current_collaboration_mode.settings.model_routing == ModelRouting::TaskDriven
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) fn model_selection_name(&self) -> &str {
+        if self.taskdriven_selected() {
+            "taskdriven"
+        } else {
+            self.current_model()
+        }
     }
 
     pub(super) fn taskdriven_selection_item(
         &self,
         presets: &[ModelPreset],
     ) -> Option<SelectionItem> {
-        if !self.config.features.enabled(Feature::StepModelSwitching) {
+        if !self.config.features.enabled(Feature::AutonomousWorkPhase)
+            || !self.config.features.enabled(Feature::StepModelSwitching)
+        {
             return None;
         }
         let config = match TaskDrivenConfig::load(self.config.codex_home.as_path()) {
@@ -333,6 +342,12 @@ impl ChatWidget {
         &self,
         enabled: bool,
     ) -> Result<CollaborationMode, String> {
+        if enabled
+            && (!self.config.features.enabled(Feature::AutonomousWorkPhase)
+                || !self.config.features.enabled(Feature::StepModelSwitching))
+        {
+            return Err("Automatic TaskDriven routing is unavailable in this session".to_string());
+        }
         let mut config = self.load_taskdriven_config()?;
         if enabled {
             let presets = self.model_catalog.try_list_models().map_err(|_| {
@@ -351,11 +366,13 @@ impl ChatWidget {
             })?;
             mode.settings.model = initial.model.clone();
             mode.settings.reasoning_effort = Some(initial.reasoning_effort.clone());
+            mode.settings.model_routing = ModelRouting::TaskDriven;
             mode.settings.developer_instructions = Some(codex_taskdriven::enable_instructions(
                 mode.settings.developer_instructions.as_deref(),
                 &config,
             ));
         } else {
+            mode.settings.model_routing = ModelRouting::Fixed;
             mode.settings.developer_instructions = codex_taskdriven::strip_instructions(
                 mode.settings.developer_instructions.as_deref(),
             );
@@ -456,6 +473,7 @@ impl ChatWidget {
             return Ok(None);
         }
         let mut mode = self.effective_collaboration_mode();
+        mode.settings.model_routing = ModelRouting::TaskDriven;
         mode.settings.developer_instructions = Some(codex_taskdriven::enable_instructions(
             mode.settings.developer_instructions.as_deref(),
             &config,
@@ -487,5 +505,14 @@ impl ChatWidget {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn set_taskdriven_selection(&mut self) {
+        self.set_model("gpt-5.6-sol");
+        self.set_reasoning_effort(Some(ReasoningEffortConfig::XHigh));
+        self.current_collaboration_mode.settings.model_routing = ModelRouting::TaskDriven;
+        self.config.model_routing = ModelRouting::TaskDriven;
+        self.refresh_model_dependent_surfaces();
+        self.request_redraw();
     }
 }

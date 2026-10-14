@@ -776,7 +776,7 @@ async fn review_guardian_mcp_elicitation(
     let step_settings = turn_context.next_step_settings.load_full();
 
     // User approval skips ordinary CUA checks, not separate sensitive requests.
-    let user_cua_execution = step_settings.approvals_reviewer() == ApprovalsReviewer::User
+    let user_cua_execution = review_context.approvals_reviewer == ApprovalsReviewer::User
         && is_node_repl_backed_server(&request.server_name)
         && request.elicitation.meta().is_some_and(|meta| {
             metadata_str(meta, MCP_ELICITATION_TOOL_NAME_KEY) == Some("js")
@@ -810,7 +810,7 @@ async fn review_guardian_mcp_elicitation(
         };
         return Ok(Some(mcp_elicitation_response_from_guardian_decision(
             decision,
-            turn_context.model_info(),
+            &review_context.model_info,
         )));
     }
 
@@ -843,7 +843,6 @@ async fn review_guardian_mcp_elicitation(
         Some(Value::Bool(true))
     );
 
-    let mut review_context = crate::guardian::GuardianReviewContext::from(&turn_context);
     let strict_auto_review = matches!(
         request
             .elicitation
@@ -906,7 +905,7 @@ async fn review_guardian_mcp_elicitation(
             || crate::connectors::mcp_approvals_reviewer_from_layers(
                 &mcp_config.config_layer_stack,
                 ApprovalsReviewer::AutoReview,
-                Some(turn_context.model_info().slug.as_str()),
+                Some(review_context.model_info.slug.as_str()),
                 request.server_name.as_str(),
                 connector_id,
                 /*link_id*/ None,
@@ -965,10 +964,10 @@ async fn review_guardian_mcp_elicitation(
 
         let approvals_reviewer = crate::connectors::mcp_approvals_reviewer_from_layers(
             &mcp_config.config_layer_stack,
-            step_settings
+            review_context
                 .mcp_approvals_reviewer_override
                 .unwrap_or(mcp_config.approvals_reviewer),
-            Some(turn_context.model_info().slug.as_str()),
+            Some(review_context.model_info.slug.as_str()),
             request.server_name.as_str(),
             elicitation_connector_id(&request.elicitation),
             /*link_id*/ None,
@@ -1004,7 +1003,7 @@ async fn review_guardian_mcp_elicitation(
     let declined_reason = guardian_request.request.as_ref().err().cloned();
     let decision = crate::guardian::decide_approval(
         session,
-        review_context,
+        review_context.clone(),
         crate::guardian::new_guardian_review_id(),
         guardian_request,
         crate::tools::sandboxing::ApprovalRequestReasons {
@@ -1027,7 +1026,7 @@ async fn review_guardian_mcp_elicitation(
                 "declining Guardian MCP elicitation before review");
             return mcp_elicitation_decline_without_message();
         }
-        mcp_elicitation_response_from_guardian_decision(decision, turn_context.model_info())
+        mcp_elicitation_response_from_guardian_decision(decision, &review_context.model_info)
     }))
 }
 

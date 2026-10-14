@@ -1816,6 +1816,7 @@ async fn spawn_agent_fork_from_paginated_parent_uses_model_context_prefix() {
                         collaboration_mode: CollaborationMode {
                             mode: ModeKind::Default,
                             settings: Settings {
+                                model_routing: Default::default(),
                                 model: "parent-only-model".to_string(),
                                 reasoning_effort: None,
                                 developer_instructions: None,

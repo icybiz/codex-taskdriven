@@ -400,10 +400,11 @@ impl App {
                 self.restore_runtime_permissions(&mut started.session, cached);
             }
             self.agents_overview.input_states.remove(&id);
-            if started
-                .turns
-                .iter()
-                .any(|turn| turn.status == TurnStatus::InProgress)
+            if started.session.active_model.is_some()
+                || started
+                    .turns
+                    .iter()
+                    .any(|turn| turn.status == TurnStatus::InProgress)
             {
                 self.agent_navigation.mark_running(id);
             } else {

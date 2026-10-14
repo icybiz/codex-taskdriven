@@ -303,6 +303,7 @@ mod tests {
             collaboration_mode: CollaborationMode {
                 mode: ModeKind::Default,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: model.to_string(),
                     reasoning_effort: None,
                     developer_instructions: None,

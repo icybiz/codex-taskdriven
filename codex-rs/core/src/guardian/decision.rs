@@ -85,6 +85,7 @@ pub(crate) async fn decide_approval(
             options,
         },
         approval_id: &review_id,
+        model_info: &context.model_info,
         tool_call_id: request
             .request
             .as_ref()

@@ -5220,6 +5220,7 @@ fn thread_settings_update_params_preserve_field_level_experimental_gates() {
         collaboration_mode: Some(codex_protocol::config_types::CollaborationMode {
             mode: codex_protocol::config_types::ModeKind::Plan,
             settings: codex_protocol::config_types::Settings {
+                model_routing: Default::default(),
                 model: "mock-model".to_string(),
                 reasoning_effort: None,
                 developer_instructions: None,

@@ -116,6 +116,8 @@ impl McpToolContext {
 
 /// Input supplied when the host starts executing one tool call.
 pub struct ToolStartInput<'a> {
+    /// Immutable model metadata captured by the request that issued this tool.
+    pub model_info: &'a codex_protocol::openai_models::ModelInfo,
     /// Store scoped to the host session runtime.
     pub session_store: &'a ExtensionData,
     /// Store scoped to this thread runtime.

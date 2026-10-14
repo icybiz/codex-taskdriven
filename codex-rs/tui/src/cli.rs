@@ -151,3 +151,7 @@ fn mark_tui_args(cmd: clap::Command) -> clap::Command {
     })
     .mut_arg("auto_review", |arg| arg.conflicts_with("approval_policy"))
 }
+
+#[cfg(test)]
+#[path = "cli_tests.rs"]
+mod tests;

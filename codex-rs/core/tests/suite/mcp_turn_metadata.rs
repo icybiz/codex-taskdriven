@@ -459,6 +459,7 @@ async fn submit_user_turn(
                     Some(CollaborationMode {
                         mode: ModeKind::Default,
                         settings: Settings {
+                            model_routing: Default::default(),
                             model: session_model,
                             reasoning_effort: None,
                             developer_instructions: None,
@@ -1628,6 +1629,7 @@ async fn mcp_tool_call_metadata_uses_captured_step_after_request_user_input() ->
         Some(CollaborationMode {
             mode: ModeKind::Plan,
             settings: Settings {
+                model_routing: Default::default(),
                 model: test.session_configured.model.clone(),
                 reasoning_effort: None,
                 developer_instructions: None,

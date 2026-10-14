@@ -478,6 +478,7 @@ pub struct ConversationSpeechParams {
 /// task kind. Child sessions and consumers of frozen initial settings are unchanged.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TurnSettingsUpdate {
+    pub model_routing: Option<crate::config_types::ModelRouting>,
     /// Changes the reviewer for subsequent approval requests, not pending reviews.
     pub approvals_reviewer: Option<ApprovalsReviewer>,
     /// Replaces the selection for subsequent steps, without changing future turns.
@@ -1387,6 +1388,10 @@ pub enum EventMsg {
     /// Model routing changed from the requested model to a different model.
     ModelReroute(ModelRerouteEvent),
 
+    /// Model and effective effort captured for the next inference request.
+    /// This does not change persistent thread settings.
+    TurnModelUpdated(TurnModelUpdatedEvent),
+
     /// Backend recommends additional account verification for this turn.
     ModelVerification(ModelVerificationEvent),
 
@@ -2115,9 +2120,29 @@ pub enum ModelRerouteReason {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]
 pub struct ModelRerouteEvent {
+    /// Monotonic model-state sequence within this turn, including backend reroutes.
+    #[serde(default, skip_serializing_if = "model_sequence_is_zero")]
+    pub sequence: u64,
     pub from_model: String,
     pub to_model: String,
     pub reason: ModelRerouteReason,
+}
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires a reference to the field"
+)]
+fn model_sequence_is_zero(sequence: &u64) -> bool {
+    *sequence == 0
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]
+pub struct TurnModelUpdatedEvent {
+    /// Monotonic model-state sequence within this turn, including backend reroutes.
+    #[serde(default, skip_serializing_if = "model_sequence_is_zero")]
+    pub sequence: u64,
+    pub model: String,
+    pub effort: Option<ReasoningEffortConfig>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]

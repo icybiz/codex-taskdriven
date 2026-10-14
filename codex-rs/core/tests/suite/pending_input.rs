@@ -189,6 +189,7 @@ async fn assert_idle_user_input_reaches_the_first_model_request(
                 collaboration_mode: Some(CollaborationMode {
                     mode,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -363,6 +364,7 @@ async fn submit_danger_full_access_user_turn(test: &TestCodex, text: &str) {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

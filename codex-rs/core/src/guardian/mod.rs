@@ -75,10 +75,12 @@ pub(crate) const GUARDIAN_MAX_ROOT_MESSAGE_TOKENS: usize = 900;
 pub(crate) const GUARDIAN_MAX_NODE_REPL_TOOL_RESULT_TOKENS: usize = 6_000;
 
 /// Captures review inputs from the issuing step without retaining its MCP bindings or tool router.
-/// Background network approvals and Unix interception use the active task's resolved settings.
+/// Background network approvals and Unix interception retain their originating model
+/// while using the active task's current approval authority.
 /// Startup reviewer prewarming intentionally uses turn-only inputs because it has no issuing step.
 ///
-/// MCP elicitation reviews continue to use turn-only inputs.
+/// MCP elicitation reviews retain the originating call's lightweight review snapshot;
+/// they do not keep executable MCP bindings alive.
 #[derive(Clone)]
 pub(crate) struct GuardianReviewContext {
     /// The latest response ID received in this turn when review was requested.
@@ -92,6 +94,25 @@ pub(crate) struct GuardianReviewContext {
     pub(crate) personality: Option<Personality>,
     pub(crate) approval_policy: AskForApproval,
     pub(crate) approvals_reviewer: ApprovalsReviewer,
+    pub(crate) mcp_approvals_reviewer_override: Option<ApprovalsReviewer>,
+}
+
+/// Model-owned inputs that can outlive a tool without retaining executable bindings.
+#[derive(Clone)]
+pub(crate) struct GuardianModelContext {
+    pub(crate) model_info: Arc<ModelInfo>,
+    pub(crate) reasoning_effort: Option<ReasoningEffort>,
+    pub(crate) reasoning_summary: ReasoningSummary,
+}
+
+impl GuardianModelContext {
+    pub(crate) fn from_settings(settings: &ResolvedStepSettings) -> Self {
+        Self {
+            model_info: Arc::clone(&settings.model_info),
+            reasoning_effort: settings.reasoning_effort().cloned(),
+            reasoning_summary: settings.reasoning_summary,
+        }
+    }
 }
 
 impl GuardianReviewContext {
@@ -123,7 +144,24 @@ impl GuardianReviewContext {
             personality: settings.personality(),
             approval_policy: settings.approval_policy(),
             approvals_reviewer: settings.approvals_reviewer(),
+            mcp_approvals_reviewer_override: settings.mcp_approvals_reviewer_override,
             turn,
+        }
+    }
+
+    /// Keep the originating process model while retaining current user approval authority.
+    pub(crate) fn with_model_context(mut self, model: &GuardianModelContext) -> Self {
+        self.model_info = Arc::clone(&model.model_info);
+        self.reasoning_effort = model.reasoning_effort.clone();
+        self.reasoning_summary = model.reasoning_summary;
+        self
+    }
+
+    pub(crate) fn model_context(&self) -> GuardianModelContext {
+        GuardianModelContext {
+            model_info: Arc::clone(&self.model_info),
+            reasoning_effort: self.reasoning_effort.clone(),
+            reasoning_summary: self.reasoning_summary,
         }
     }
 
@@ -152,6 +190,7 @@ impl From<&Arc<StepContext>> for GuardianReviewContext {
             personality: step.settings.personality(),
             approval_policy: step.settings.approval_policy(),
             approvals_reviewer: step.settings.approvals_reviewer(),
+            mcp_approvals_reviewer_override: step.settings.mcp_approvals_reviewer_override,
         }
     }
 }
@@ -170,6 +209,7 @@ impl From<Arc<TurnContext>> for GuardianReviewContext {
             personality: turn.personality(),
             approval_policy: turn.approval_policy(),
             approvals_reviewer: turn.config.approvals_reviewer,
+            mcp_approvals_reviewer_override: None,
             turn,
         }
     }

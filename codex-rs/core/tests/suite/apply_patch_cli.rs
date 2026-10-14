@@ -128,6 +128,7 @@ async fn submit_without_wait_with_turn_permissions(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -2412,6 +2413,7 @@ async fn apply_patch_turn_diff_tracks_local_and_remote_environment_paths() -> Re
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

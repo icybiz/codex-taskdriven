@@ -66,10 +66,8 @@ impl GuardianApprovalReviewer {
             return ApprovalDecision::AskUser;
         }
         let config = thread.config().await;
-        let model = input
-            .thread_store
-            .get::<codex_protocol::openai_models::ModelInfo>();
-        let guardian_config = input
+        let model = input.model_info;
+        let base_guardian_config = input
             .thread_store
             .get::<GuardianV2Config>()
             .map(|config| (*config).clone())

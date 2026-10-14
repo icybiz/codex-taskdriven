@@ -137,6 +137,20 @@ impl ChatWidget {
         }
     }
 
+    /// Keep the TUI usable when app-server rejects `turn/start` before a turn
+    /// exists. The original submission is still held by the upstream safety
+    /// buffering prompt at this point, so restore it instead of exiting the
+    /// app and forcing the user to reconstruct the prompt after a resume.
+    pub(crate) fn on_turn_start_failed(&mut self, error_message: String) {
+        self.input_queue.user_turn_pending_start = false;
+        let prompt = self.safety_buffering_prompt.take();
+        if let Some(prompt) = prompt {
+            self.restore_user_message_to_composer(prompt);
+        }
+        self.add_error_message(error_message);
+        self.update_task_running_state();
+    }
+
     pub(crate) fn set_initial_user_message_submit_suppressed(&mut self, suppressed: bool) {
         self.suppress_initial_user_message_submit = suppressed;
     }

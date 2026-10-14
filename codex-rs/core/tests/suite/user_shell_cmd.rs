@@ -319,6 +319,7 @@ async fn user_shell_command_does_not_replace_active_turn() -> anyhow::Result<()>
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: fixture.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

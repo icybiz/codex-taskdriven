@@ -52,6 +52,7 @@ use crate::history_cell::HistoryCell;
 #[cfg(not(debug_assertions))]
 use crate::history_cell::UpdateAvailableHistoryCell;
 use crate::hooks_rpc::HookTrustUpdate;
+use crate::interruption_recovery::RecoveryRun;
 use crate::key_hint::KeyBindingListExt;
 use crate::keymap::KeyChordMatcher;
 use crate::keymap::RuntimeKeymap;
@@ -232,6 +233,7 @@ mod loaded_threads;
 mod managed_worktree_creation;
 mod misalignment_policy;
 mod model_defaults;
+mod model_routing;
 mod new_session;
 mod turn_tips;
 pub(crate) use new_session::has_launch_setting;
@@ -596,6 +598,10 @@ pub(crate) struct App {
     /// Set when the user confirms an update; propagated on exit.
     daemon_cli_executable: Option<AbsolutePathBuf>,
     pub(crate) pending_update_action: Option<UpdateAction>,
+
+    /// Persists the active thread identity until a controlled TUI exit so a
+    /// crash or machine reboot can be explained on the next start.
+    interruption_recovery: RecoveryRun,
 
     /// Tracks the thread we intentionally shut down while exiting the app.
     ///

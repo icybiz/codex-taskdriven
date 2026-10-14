@@ -302,6 +302,7 @@ async fn extension_tool_uses_granted_turn_permissions_without_host_local_persist
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -525,6 +526,7 @@ async fn extension_tool_rebinds_granted_permissions_on_each_turn(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

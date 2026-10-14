@@ -312,6 +312,7 @@ async fn snapshot_model_visible_layout_turn_overrides() -> Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: test.config.model_reasoning_effort.clone(),
                         developer_instructions: None,
@@ -344,6 +345,7 @@ async fn snapshot_model_visible_layout_turn_overrides() -> Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: test.config.model_reasoning_effort.clone(),
                         developer_instructions: None,
@@ -432,6 +434,7 @@ async fn snapshot_model_visible_layout_cwd_change_refreshes_agents() -> Result<(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: test.config.model_reasoning_effort.clone(),
                         developer_instructions: None,
@@ -462,6 +465,7 @@ async fn snapshot_model_visible_layout_cwd_change_refreshes_agents() -> Result<(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: test.config.model_reasoning_effort.clone(),
                         developer_instructions: None,
@@ -575,6 +579,7 @@ async fn snapshot_model_visible_layout_resume_with_personality_change() -> Resul
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: resumed.session_configured.model.clone(),
                         reasoning_effort: resumed.config.model_reasoning_effort.clone(),
                         developer_instructions: None,

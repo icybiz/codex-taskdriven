@@ -1978,6 +1978,8 @@ async fn guardian_v2_routes_scoped_tool_approvals(
             })
             .await?;
         }
+        // Analytics delivery is asynchronous. A completed RPC turn does not
+        // guarantee that the analytics queue has delivered its final event.
         let turn = wait_for_matching_analytics_event(&analytics_server, TIMEOUT, |event| {
             event["event_type"] == "codex_turn_event"
                 && event["event_params"]["thread_id"] == reviewed_thread_id

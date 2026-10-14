@@ -90,8 +90,8 @@ fn check_legacy_turn_safety(
     )
 }
 
-/// Model-owned portion of the temporary legacy-turn safety check. Ordinary
-/// model metadata may differ so diagnostics can expose unmigrated consumers.
+/// Conservative restrictions outside the verified Sol/Astra review paths.
+/// Review requirements and Guardian V2 defaults are captured per invocation.
 fn check_legacy_model_safety(
     admitted: &ModelInfo,
     current: &ModelInfo,
@@ -115,21 +115,7 @@ fn check_legacy_model_safety(
     }) {
         return Err("the destination changes the admitted Guardian rejection policy".to_string());
     }
-    // TurnMetadataState pins both node REPL flags. Guardian prompt/evidence
-    // construction also reads node_repl_auto_review_required from the turn.
-    if retained_models.iter().any(|model| {
-        model.computer_use_review_required() != destination.computer_use_review_required()
-    }) {
-        return Err(
-            "the destination changes the admitted node REPL review requirement".to_string(),
-        );
-    }
-    if retained_models
-        .iter()
-        .any(|model| model.guardian != destination.guardian)
-    {
-        return Err("the destination changes the admitted Guardian coverage".to_string());
-    }
+    // Tool availability still includes the admitted turn configuration.
     if retained_models
         .iter()
         .any(|model| model.node_repl_disabled != destination.node_repl_disabled)
@@ -138,47 +124,12 @@ fn check_legacy_model_safety(
             "the destination changes the admitted node REPL availability restriction".to_string(),
         );
     }
-    // guardian::review::guardian_review_session_config and Guardian V2 still
-    // select the reviewer from the retained parent metadata.
+    // Explicit reviewer changes are outside the verified switching scope.
     if retained_models
         .iter()
         .any(|model| model.auto_review_model_override != destination.auto_review_model_override)
     {
         return Err("the destination changes the explicit Guardian reviewer model".to_string());
-    }
-
-    if (admitted_config.features.enabled(Feature::GuardianV2) || destination.guardian.is_some())
-        && admitted_config.features.enabled(Feature::GuardianApproval)
-    {
-        // GuardianV2Extension::on_tool_start reads the parent ModelInfo from
-        // thread_store. Its classifier settings are independent of the reviewer
-        // override. Local overrides may mask differences, but resolving those
-        // overrides remains the extension's responsibility.
-        let classification_settings =
-            |model: &ModelInfo| -> GuardianV2ModelConfig {
-                let mut settings = model
-                    .model_messages
-                    .as_ref()
-                    .and_then(|messages| messages.guardian_v2.clone())
-                    .unwrap_or_default();
-                // Missing and empty transcript records supply the same defaults.
-                if settings.transcript.as_ref().is_some_and(|transcript| {
-                    *transcript == GuardianV2TranscriptModelConfig::default()
-                }) {
-                    settings.transcript = None;
-                }
-                settings
-            };
-        let destination_settings = classification_settings(destination);
-        if retained_models
-            .iter()
-            .any(|model| classification_settings(model) != destination_settings)
-        {
-            return Err(
-                "the destination changes the admitted Guardian V2 classification settings"
-                    .to_string(),
-            );
-        }
     }
 
     // guardian_review_session_config and Guardian V2 can fall back to parent
@@ -232,13 +183,7 @@ impl Session {
             .await
     }
 
-    /// Publishes settings to the named, originally captured live task, regardless
-    /// of task kind. Publication does not propagate to child sessions or require
-    /// the task to sample; consumers using initial settings remain unchanged.
-    ///
-    /// Callers must serialize updates through completion, including model
-    /// resolution, so each sparse patch sees the preceding publication.
-    pub(super) async fn apply_turn_settings(
+    pub(crate) async fn apply_turn_settings(
         &self,
         turn_id: &str,
         update: TurnSettingsUpdate,
@@ -247,6 +192,12 @@ impl Session {
             .await
     }
 
+    /// Publishes settings to the named, originally captured live task, regardless
+    /// of task kind. Publication does not propagate to child sessions or require
+    /// the task to sample; consumers using initial settings remain unchanged.
+    ///
+    /// Callers must serialize updates through completion, including model
+    /// resolution, so each sparse patch sees the preceding publication.
     #[expect(
         clippy::await_holding_invalid_type,
         reason = "the final managed-policy check and active settings publication must remain atomic"
@@ -299,6 +250,7 @@ impl Session {
             return TurnSettingsUpdateOutcome::TargetUnavailable;
         }
         let TurnSettingsUpdate {
+            model_routing,
             approvals_reviewer,
             environments,
             model,
@@ -308,6 +260,7 @@ impl Session {
         } = update;
         let updates_step_settings = updates_model_settings || approvals_reviewer.is_some();
         let update = StepSettingsUpdate {
+            model_routing,
             approvals_reviewer,
             model,
             effort,

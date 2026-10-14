@@ -221,6 +221,7 @@ async fn renews_cache_ttl_on_matching_models_etag() -> Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

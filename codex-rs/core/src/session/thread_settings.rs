@@ -70,6 +70,7 @@ pub(super) fn prepare_update(
     SessionSettingsUpdate {
         turn_extension_init,
         step_settings: StepSettingsUpdate {
+            model_routing: None,
             model,
             effort,
             collaboration_mode,
@@ -107,7 +108,32 @@ pub(super) async fn apply_update(
     updates: SessionSettingsUpdate,
 ) -> ConstraintResult<()> {
     let _settings_guard = acquire_persistence_lock(session).await;
+    let explicit_model_selection =
+        updates.step_settings.model.is_some() || updates.step_settings.collaboration_mode.is_some();
     let commit = session.update_settings(updates).await?;
+    if explicit_model_selection
+        && commit.snapshot.collaboration_mode.settings.model_routing
+            == codex_protocol::config_types::ModelRouting::Fixed
+    {
+        // A fixed selection disables automatic routing immediately, while the
+        // selected model still follows ordinary future-turn semantics. Clone the
+        // current snapshot so its model, review authority and request preferences
+        // remain exact; already captured requests retain their original snapshot.
+        let active = session.active_turn.lock().await;
+        if let Some(task) = active.as_ref().and_then(|active| active.task.as_ref()) {
+            let current = task.turn_context.current_settings.load_full();
+            if current.selected.collaboration_mode.settings.model_routing
+                == codex_protocol::config_types::ModelRouting::TaskDriven
+            {
+                let mut fixed = (*current).clone();
+                Arc::make_mut(&mut fixed.selected)
+                    .collaboration_mode
+                    .settings
+                    .model_routing = codex_protocol::config_types::ModelRouting::Fixed;
+                task.turn_context.current_settings.store(Arc::new(fixed));
+            }
+        }
+    }
     emit_applied(session, submission_id, commit.snapshot).await;
     Ok(())
 }

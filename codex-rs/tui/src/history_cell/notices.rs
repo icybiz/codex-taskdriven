@@ -70,7 +70,12 @@ impl HistoryCell for UpdateAvailableHistoryCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        let update_instruction = if let Some(update_action) = self.update_action {
+        let update_instruction = if crate::version::IS_HARDENED_BUILD {
+            format!(
+                "Rebuild and deploy the hardened Codex centrally from {}; do not self-update this binary.",
+                crate::version::HARDENED_UPDATE_ORIGIN
+            )
+        } else if let Some(update_action) = self.update_action {
             format!("Run {} to update.", update_action.command_str())
         } else {
             "See https://github.com/openai/codex for installation options.".to_string()
@@ -198,6 +203,26 @@ pub(crate) fn new_cyber_policy_error_event(
         body,
         actions,
     }
+}
+
+pub(crate) fn new_cyber_policy_recovery_event(
+    prompt_restored: bool,
+    queued_input_paused: bool,
+) -> PrefixedWrappedHistoryCell {
+    let mut message = String::from("CON did not retry this turn.");
+    if prompt_restored {
+        message.push_str(
+            " The submitted prompt was restored to the composer for local review and editing.",
+        );
+    }
+    if queued_input_paused {
+        message
+            .push_str(" Queued follow-ups are paused; use Alt+Up to bring them back for review.");
+    }
+    message.push_str(
+        " Do not resubmit the blocked request unchanged or ask the model to explain the rejection. If the remaining task can be stated independently within the applicable policy, continue in a fresh thread from a short, human-reviewed handover. A fresh thread does not change the applicable policy.",
+    );
+    new_warning_event(message)
 }
 
 impl HistoryCell for SafetyAccessBlockCell {

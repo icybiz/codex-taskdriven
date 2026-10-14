@@ -113,6 +113,7 @@ async fn exec_command_tool_executes_command_and_streams_output() -> anyhow::Resu
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -191,6 +192,7 @@ async fn update_plan_tool_emits_plan_update_event() -> anyhow::Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -279,6 +281,7 @@ async fn update_plan_tool_rejects_malformed_payload() -> anyhow::Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -377,6 +380,7 @@ async fn apply_patch_tool_executes_and_emits_patch_events() -> anyhow::Result<()
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -512,6 +516,7 @@ async fn apply_patch_reports_parse_diagnostics() -> anyhow::Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,

@@ -1009,6 +1009,11 @@ impl Session {
         per_turn_config
             .permissions
             .set_workspace_roots(workspace_roots);
+        per_turn_config.model_routing = session_configuration
+            .step_settings
+            .collaboration_mode
+            .settings
+            .model_routing;
         per_turn_config.model_reasoning_effort = session_configuration
             .step_settings
             .collaboration_mode

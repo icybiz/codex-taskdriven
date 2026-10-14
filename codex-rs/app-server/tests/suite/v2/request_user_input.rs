@@ -113,6 +113,7 @@ async fn request_user_input_round_trip_for_mode(
                 collaboration_mode: Some(CollaborationMode {
                     mode,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: "mock-model".to_string(),
                         reasoning_effort: Some(ReasoningEffort::Medium),
                         developer_instructions: None,

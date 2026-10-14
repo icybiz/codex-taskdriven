@@ -1751,6 +1751,7 @@ fn model_reroute_surfaces_as_error_item() {
 
     let collected = processor.collect_thread_events(ServerNotification::ModelRerouted(
         codex_app_server_protocol::ModelReroutedNotification {
+            sequence: 0,
             thread_id: "thread-1".to_string(),
             turn_id: "turn-1".to_string(),
             from_model: "gpt-5".to_string(),

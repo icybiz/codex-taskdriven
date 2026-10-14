@@ -1,6 +1,9 @@
 //! Thread settings sync between TUI-local state and app-server thread state.
 
 use super::App;
+use super::ServerNotification;
+use super::ThreadBufferedEvent;
+use super::ThreadEventStore;
 use crate::app_command::AppCommand;
 use crate::app_event::AppEvent;
 use crate::app_event::PermissionProfileSelection;
@@ -14,9 +17,57 @@ use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_config::types::ApprovalsReviewer;
 use codex_protocol::ThreadId;
 use codex_protocol::config_types::ModeKind;
+use codex_protocol::config_types::ModelRouting;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_WORKSPACE;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::openai_models::MODEL_SPECIALTY_CYBER;
+use codex_protocol::openai_models::ReasoningEffort;
+
+impl ThreadEventStore {
+    /// Discard the last request's display when idle model defaults really change.
+    /// Unrelated settings refreshes and active requests keep their captured model.
+    pub(super) fn clear_idle_model_display_for_settings(
+        &mut self,
+        model: &str,
+        effort: Option<&ReasoningEffort>,
+        model_routing: ModelRouting,
+    ) {
+        if self.active_turn_id.is_some() {
+            return;
+        }
+        let changed = self.session.as_ref().is_some_and(|session| {
+            let (previous_model, previous_effort, previous_routing) =
+                session.collaboration_mode.as_ref().map_or(
+                    (
+                        session.model.as_str(),
+                        session.reasoning_effort.as_ref(),
+                        session.model_routing,
+                    ),
+                    |mode| {
+                        (
+                            mode.model(),
+                            mode.settings.reasoning_effort.as_ref(),
+                            mode.settings.model_routing,
+                        )
+                    },
+                );
+            model != previous_model
+                || effort != previous_effort
+                || model_routing != previous_routing
+        });
+        if changed {
+            self.latest_model = None;
+            // Removing only the retained value would let an older buffered
+            // notification restore it during a later thread switch.
+            self.buffer.retain(|event| {
+                !matches!(event, ThreadBufferedEvent::Notification(notification)
+                    if matches!(notification.as_ref(),
+                        ServerNotification::TurnModelUpdated(_)
+                            | ServerNotification::ModelRerouted(_)))
+            });
+        }
+    }
+}
 
 impl App {
     pub(super) async fn apply_taskdriven_mode(
@@ -212,6 +263,11 @@ impl App {
 
         if let Some(channel) = self.thread_event_channels.get(&thread_id) {
             let mut store = channel.store.lock().await;
+            store.clear_idle_model_display_for_settings(
+                &settings.model,
+                settings.effort.as_ref(),
+                settings.collaboration_mode.settings.model_routing,
+            );
             if let Some(session) = store.session.as_mut() {
                 apply_thread_settings_to_session(session, settings);
             }
@@ -264,6 +320,7 @@ fn apply_thread_settings_to_session(session: &mut ThreadSessionState, settings: 
         session.model = settings.model.clone();
         session.reasoning_effort = settings.effort.clone();
     }
+    session.model_routing = settings.collaboration_mode.settings.model_routing;
     session.model_provider_id = settings.model_provider.clone();
     session.service_tier = settings.service_tier.clone();
     session.approval_policy = settings.approval_policy;

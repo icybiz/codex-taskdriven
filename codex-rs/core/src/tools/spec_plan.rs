@@ -1229,12 +1229,17 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
             .settings
             .developer_instructions
             .as_deref(),
+    ) || codex_taskdriven::instructions_are_enabled(
+        turn_context.developer_instructions.as_deref(),
     );
     if taskdriven_enabled
+        && features.enabled(Feature::AutonomousWorkPhase)
         && features.enabled(Feature::StepModelSwitching)
+        && context.model_routing == codex_protocol::config_types::ModelRouting::TaskDriven
         && !crate::guardian::is_basic_session_source(&turn_context.session_source)
         && let Ok(config) =
             codex_taskdriven::TaskDrivenConfig::load(turn_context.config.codex_home.as_path())
+        && config.enabled
     {
         registry.add_with_exposure(WorkPhaseHandler::new(config), ToolExposure::DirectModelOnly);
     }

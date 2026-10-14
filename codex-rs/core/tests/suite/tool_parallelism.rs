@@ -55,6 +55,7 @@ async fn run_turn(test: &TestCodex, prompt: &str) -> anyhow::Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -377,6 +378,7 @@ async fn shell_tools_start_before_response_completed_when_stream_delayed() -> an
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,

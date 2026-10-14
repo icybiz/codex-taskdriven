@@ -194,6 +194,11 @@ pub struct ConfigToml {
     #[schemars(with = "Option<crate::schema::ConfigAskForApproval>")]
     pub approval_policy: Option<AskForApproval>,
 
+    /// Apply the same unrestricted execution policy as the `--yolo` CLI flag.
+    /// The TUI accepts this only from user-owned configuration layers; explicit
+    /// CLI approval or sandbox flags take precedence.
+    pub yolo: Option<bool>,
+
     /// Configures who approval requests are routed to for review once they have
     /// been escalated. This does not disable separate safety checks such as
     /// ARC.
@@ -245,6 +250,11 @@ pub struct ConfigToml {
     /// Optional external command to spawn for end-user notifications.
     #[serde(default)]
     pub notify: Option<Vec<String>>,
+
+    /// Append user prompts and visible Codex responses to this plain-text file.
+    /// The TUI accepts this only from user-owned configuration layers or its
+    /// dedicated CLI flag.
+    pub plain_transcript: Option<AbsolutePathBuf>,
 
     /// System instructions.
     pub instructions: Option<String>,

@@ -396,8 +396,22 @@ pub(crate) async fn apply_bespoke_event_handling(
                 .await;
             }
         }
+        EventMsg::TurnModelUpdated(event) => {
+            outgoing
+                .send_server_notification(ServerNotification::TurnModelUpdated(
+                    codex_app_server_protocol::TurnModelUpdatedNotification {
+                        sequence: event.sequence,
+                        thread_id: conversation_id.to_string(),
+                        turn_id: event_turn_id.clone(),
+                        model: event.model,
+                        effort: event.effort,
+                    },
+                ))
+                .await;
+        }
         EventMsg::ModelReroute(event) => {
             let notification = ModelReroutedNotification {
+                sequence: event.sequence,
                 thread_id: conversation_id.to_string(),
                 turn_id: event_turn_id.clone(),
                 from_model: event.from_model,

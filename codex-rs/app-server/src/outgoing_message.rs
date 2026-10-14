@@ -1119,6 +1119,7 @@ mod tests {
     #[test]
     fn verify_model_rerouted_notification_serialization() {
         let notification = ServerNotification::ModelRerouted(ModelReroutedNotification {
+            sequence: 0,
             thread_id: "thread-1".to_string(),
             turn_id: "turn-1".to_string(),
             from_model: "gpt-5.3-codex".to_string(),
@@ -1391,6 +1392,7 @@ mod tests {
                 .send_server_notification_to_connection_and_wait(
                     ConnectionId(42),
                     ServerNotification::ModelRerouted(ModelReroutedNotification {
+                        sequence: 0,
                         thread_id: "thread-1".to_string(),
                         turn_id: "turn-1".to_string(),
                         from_model: "gpt-5.3-codex".to_string(),

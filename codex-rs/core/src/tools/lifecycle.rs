@@ -41,6 +41,7 @@ pub(crate) async fn notify_tool_start(
     for contributor in contributors {
         contributor
             .on_tool_start(ToolStartInput {
+                model_info: &invocation.step_context.settings.model_info,
                 session_store: &invocation.session.services.session_extension_data,
                 thread_store,
                 turn_store: invocation.turn.extension_data.as_ref(),

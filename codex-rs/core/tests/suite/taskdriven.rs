@@ -4,6 +4,7 @@ use codex_features::Feature;
 use codex_models_manager::bundled_models_response;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::ModeKind;
+use codex_protocol::config_types::ModelRouting;
 use codex_protocol::config_types::Settings;
 use codex_protocol::openai_models::ModelsResponse;
 use codex_protocol::openai_models::ReasoningEffort;
@@ -58,6 +59,10 @@ async fn configured_task_switches_model_inside_the_same_turn() -> Result<()> {
                 .features
                 .enable(Feature::StepModelSwitching)
                 .expect("enable step model switching");
+            config
+                .features
+                .enable(Feature::AutonomousWorkPhase)
+                .expect("enable autonomous work phase");
             let template = bundled_models_response()
                 .expect("load bundled model catalog")
                 .models
@@ -98,6 +103,7 @@ async fn configured_task_switches_model_inside_the_same_turn() -> Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: ModelRouting::TaskDriven,
                         model: "gpt-5.6-sol".to_string(),
                         reasoning_effort: Some(ReasoningEffort::XHigh),
                         developer_instructions: Some(instructions),

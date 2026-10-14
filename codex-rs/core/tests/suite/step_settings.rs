@@ -210,7 +210,7 @@ fn pause_call(call_id: &str) -> Value {
     )
 }
 
-async fn start_paused_turn(thread: &CodexThread) -> Result<RequestUserInputEvent> {
+pub(super) async fn start_paused_turn(thread: &CodexThread) -> Result<RequestUserInputEvent> {
     thread
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
             text: "pause before continuing".into(),
@@ -224,7 +224,7 @@ async fn start_paused_turn(thread: &CodexThread) -> Result<RequestUserInputEvent
     .await)
 }
 
-async fn answer_paused_turn(thread: &CodexThread, turn_id: &str) -> Result<()> {
+pub(super) async fn answer_paused_turn(thread: &CodexThread, turn_id: &str) -> Result<()> {
     thread
         .submit(Op::UserInputAnswer {
             id: turn_id.to_string(),

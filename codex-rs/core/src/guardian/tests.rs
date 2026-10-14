@@ -4216,3 +4216,6 @@ async fn review_approval_request(
     .await
     .expect("Guardian should handle the request")
 }
+
+#[path = "captured_model_tests.rs"]
+mod captured_model_tests;

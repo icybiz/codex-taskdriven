@@ -44,6 +44,7 @@ use codex_models_manager::bundled_models_response;
 use codex_models_manager::manager::SharedModelsManager;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::ModeKind;
+use codex_protocol::config_types::ModelRouting;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::config_types::Settings;
 use codex_protocol::config_types::WindowsSandboxLevel;
@@ -1185,6 +1186,22 @@ impl TestCodex {
         let (sandbox_policy, permission_profile) =
             turn_permission_fields(permission_profile, self.config.cwd.as_path());
         let session_model = self.session_configured.model.clone();
+        let collaboration_mode = if self.config.model_routing == ModelRouting::TaskDriven {
+            self.codex
+                .thread_settings_snapshot()
+                .await
+                .collaboration_mode
+        } else {
+            CollaborationMode {
+                mode: ModeKind::Default,
+                settings: Settings {
+                    model_routing: ModelRouting::Fixed,
+                    model: session_model,
+                    reasoning_effort: None,
+                    developer_instructions: None,
+                },
+            }
+        };
         let turn_environment_selections = environments.map(|environments| {
             TurnEnvironmentSelections::new(self.config.cwd.clone(), environments)
         });
@@ -1200,14 +1217,7 @@ impl TestCodex {
                     sandbox_policy: Some(sandbox_policy),
                     permission_profile,
                     service_tier,
-                    collaboration_mode: Some(CollaborationMode {
-                        mode: ModeKind::Default,
-                        settings: Settings {
-                            model: session_model,
-                            reasoning_effort: None,
-                            developer_instructions: None,
-                        },
-                    }),
+                    collaboration_mode: Some(collaboration_mode),
                     ..Default::default()
                 }),
             )

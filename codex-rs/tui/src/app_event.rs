@@ -1183,6 +1183,9 @@ pub(crate) enum AppEvent {
 
     /// Update the current model slug in the running app and widget.
     UpdateModel(String),
+    /// Select automatic work-phase routing without using a synthetic model slug.
+    #[cfg_attr(not(test), allow(dead_code))]
+    SelectTaskDriven,
 
     /// Apply a final Astra picker action and offer the flourish only if it changed the model on
     /// its original task. Automatic model updates do not use this event.

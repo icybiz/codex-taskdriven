@@ -142,6 +142,7 @@ async fn start_plan_mode_turn(mcp: &mut TestAppServer) -> Result<codex_app_serve
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Plan,
         settings: Settings {
+            model_routing: Default::default(),
             model: "mock-model".to_string(),
             reasoning_effort: None,
             developer_instructions: None,

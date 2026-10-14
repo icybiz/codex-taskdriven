@@ -2146,6 +2146,7 @@ fn thread_resume_params_from_config(
         && let Some(overrides) = config_overrides.as_mut()
     {
         overrides.remove("model_reasoning_effort");
+        overrides.remove("model_routing");
         if overrides.is_empty() {
             config_overrides = None;
         }
@@ -2496,6 +2497,7 @@ async fn thread_session_state_from_thread_response(
         fork_parent_title: None,
         thread_name,
         model,
+        model_routing,
         model_provider_id,
         service_tier,
         approval_policy,
@@ -3443,6 +3445,7 @@ mod tests {
         assert_eq!(fork.service_tier, expected_service_tier);
         let string = |value: &str| serde_json::Value::String(value.to_string());
         let expected_config = HashMap::from([
+            ("model_routing".to_string(), string("fixed")),
             ("model_reasoning_effort".to_string(), string("high")),
             ("bypass_hook_trust".to_string(), true.into()),
         ]);

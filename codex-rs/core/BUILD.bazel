@@ -1,8 +1,10 @@
 load("//:defs.bzl", "codex_rust_crate")
 
+exports_files(["tests/fixtures/taskdriven-models-20260910.json"])
+
 codex_rust_crate(
     name = "core",
-    compile_data = glob(["assets/**"]),
+    compile_data = glob(["assets/**"]) + ["tests/fixtures/taskdriven-models-20260910.json"],
     crate_name = "codex_core",
     crate_srcs = glob(["src/**/*.rs"]) + [
         "//codex-rs/ext/guardian-v2:src/sync_reviewer/reviewer_config.rs",

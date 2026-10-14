@@ -1,3 +1,4 @@
+pub use crate::model_routing::ModelRouting;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_redacted_string::RedactedString;
 use schemars::JsonSchema;
@@ -730,7 +731,9 @@ impl CollaborationMode {
     /// - `effort`: `Some(Some(e))` to set effort to `e`, `Some(None)` to clear effort, `None` to keep current effort
     /// - `developer_instructions`: `Some(Some(s))` to set instructions, `Some(None)` to clear them, `None` to keep current
     ///
-    /// Returns a new `CollaborationMode` with updated values, preserving the mode.
+    /// Returns a new `CollaborationMode`, preserving its collaboration kind.
+    /// An explicit model selection disables automatic model routing, even when
+    /// it selects the same model. Other sparse edits preserve the routing policy.
     pub fn with_updates(
         &self,
         model: Option<String>,
@@ -739,6 +742,11 @@ impl CollaborationMode {
     ) -> Self {
         let settings = self.settings_ref();
         let updated_settings = Settings {
+            model_routing: if model.is_some() {
+                ModelRouting::Fixed
+            } else {
+                settings.model_routing
+            },
             model: model.unwrap_or_else(|| settings.model.clone()),
             reasoning_effort: effort.unwrap_or_else(|| settings.reasoning_effort.clone()),
             developer_instructions: developer_instructions
@@ -756,16 +764,26 @@ impl CollaborationMode {
     /// the corresponding fields, while `None` values will preserve the original values.
     ///
     /// The `name` field in the mask is ignored as it's metadata for the mask itself.
+    /// Automatic routing retains its model and effort while applying the mask's
+    /// collaboration kind and instructions.
     pub fn apply_mask(&self, mask: &CollaborationModeMask) -> Self {
         let settings = self.settings_ref();
         CollaborationMode {
             mode: mask.mode.unwrap_or(self.mode),
             settings: Settings {
-                model: mask.model.clone().unwrap_or_else(|| settings.model.clone()),
-                reasoning_effort: mask
-                    .reasoning_effort
-                    .clone()
-                    .unwrap_or_else(|| settings.reasoning_effort.clone()),
+                model_routing: settings.model_routing,
+                model: if settings.model_routing == ModelRouting::TaskDriven {
+                    settings.model.clone()
+                } else {
+                    mask.model.clone().unwrap_or_else(|| settings.model.clone())
+                },
+                reasoning_effort: if settings.model_routing == ModelRouting::TaskDriven {
+                    settings.reasoning_effort.clone()
+                } else {
+                    mask.reasoning_effort
+                        .clone()
+                        .unwrap_or_else(|| settings.reasoning_effort.clone())
+                },
                 developer_instructions: mask
                     .developer_instructions
                     .clone()
@@ -778,6 +796,10 @@ impl CollaborationMode {
 /// Settings for a collaboration mode.
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Settings {
+    /// Automatic routing is explicitly selected independently of the real model.
+    #[serde(default, rename = "modelRouting")]
+    #[ts(rename = "modelRouting")]
+    pub model_routing: ModelRouting,
     pub model: String,
     pub reasoning_effort: Option<ReasoningEffort>,
     pub developer_instructions: Option<String>,
@@ -830,6 +852,7 @@ mod tests {
         let mode = CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model: "gpt-5.2-codex".to_string(),
                 reasoning_effort: Some(ReasoningEffort::High),
                 developer_instructions: Some("stay focused".to_string()),
@@ -846,6 +869,7 @@ mod tests {
         let expected = CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model: "gpt-5.2-codex".to_string(),
                 reasoning_effort: None,
                 developer_instructions: None,

@@ -49,17 +49,6 @@ pub(super) async fn run_main_inner(
             ));
         }
     }
-    let (sandbox_mode, approval_policy) = if cli.dangerously_bypass_approvals_and_sandbox {
-        (
-            Some(SandboxMode::DangerFullAccess),
-            Some(AskForApproval::Never.to_core()),
-        )
-    } else {
-        (
-            cli.sandbox_mode.map(Into::<SandboxMode>::into),
-            cli.approval_policy.map(Into::into),
-        )
-    };
 
     cli.shared
         .take_auto_review_config_overrides(&mut cli.config_overrides);
@@ -76,7 +65,7 @@ pub(super) async fn run_main_inner(
     let raw_overrides = cli.config_overrides.raw_overrides.clone();
     // `oss` model provider.
     let overrides_cli = codex_utils_cli::CliConfigOverrides { raw_overrides };
-    let cli_kv_overrides = match overrides_cli.parse_overrides() {
+    let mut cli_kv_overrides = match overrides_cli.parse_overrides() {
         // Parse `-c` overrides from the CLI.
         Ok(v) => v,
         #[allow(clippy::print_stderr)]
@@ -148,6 +137,25 @@ pub(super) async fn run_main_inner(
             CloudConfigBundleLoader::default(),
         )
         .await;
+        let validation_hardened_settings =
+            hardened_user_settings(&validation_bootstrap.config_layer_stack)?;
+        let validation_use_yolo = should_use_yolo(
+            cli.dangerously_bypass_approvals_and_sandbox,
+            validation_hardened_settings.yolo.unwrap_or(false),
+            cli.sandbox_mode.is_some(),
+            cli.approval_policy.is_some(),
+        );
+        let (validation_sandbox_mode, validation_approval_policy) = if validation_use_yolo {
+            (
+                Some(SandboxMode::DangerFullAccess),
+                Some(AskForApproval::Never.to_core()),
+            )
+        } else {
+            (
+                cli.sandbox_mode.map(Into::<SandboxMode>::into),
+                cli.approval_policy.map(Into::into),
+            )
+        };
         let validation_cloud_config_bundle = if workload_identity_selected {
             cloud_config_bundle_for_app_server_target(
                 &validation_target,
@@ -163,8 +171,8 @@ pub(super) async fn run_main_inner(
             cli_kv_overrides.clone(),
             ConfigOverrides {
                 model: cli.model.clone(),
-                approval_policy,
-                sandbox_mode,
+                approval_policy: validation_approval_policy,
+                sandbox_mode: validation_sandbox_mode,
                 cwd: validation_cwd.map(AbsolutePathBuf::into_path_buf),
                 model_provider: cli
                     .oss

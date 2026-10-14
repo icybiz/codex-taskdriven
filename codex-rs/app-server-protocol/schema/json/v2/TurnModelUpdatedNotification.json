@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ReasoningEffort": {
+      "description": "A non-empty reasoning effort value advertised by the model.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "description": "Captured inference settings, emitted before response output. Repeated requests may report the same settings. Persistent thread defaults are unchanged.",
+  "properties": {
+    "effort": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ReasoningEffort"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "model": {
+      "type": "string"
+    },
+    "sequence": {
+      "description": "Monotonic model-state sequence within this turn; zero is a legacy event.",
+      "format": "uint64",
+      "minimum": 0.0,
+      "type": "integer"
+    },
+    "threadId": {
+      "type": "string"
+    },
+    "turnId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "model",
+    "threadId",
+    "turnId"
+  ],
+  "title": "TurnModelUpdatedNotification",
+  "type": "object"
+}

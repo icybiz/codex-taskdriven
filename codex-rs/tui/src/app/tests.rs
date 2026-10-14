@@ -8,6 +8,8 @@ mod math_interruption_tests;
 #[path = "tests/security_setup_tests.rs"]
 mod security_setup_tests;
 
+#[path = "tests/active_model_resume_tests.rs"]
+mod active_model_resume_tests;
 #[path = "tests/advanced_reasoning_tests.rs"]
 mod advanced_reasoning_tests;
 #[path = "tests/agents_navigation_tests.rs"]
@@ -53,6 +55,8 @@ mod misalignment_policy;
 mod model_catalog;
 #[path = "tests/model_defaults_tests.rs"]
 mod model_defaults;
+#[path = "tests/model_routing_tests.rs"]
+mod model_routing_tests;
 #[path = "tests/pagination_completion_tests.rs"]
 mod pagination_completion_tests;
 #[path = "tests/patch_approval_tests.rs"]
@@ -1854,6 +1858,7 @@ async fn replay_thread_snapshot_restores_collaboration_mode_for_draft_submit() {
                 Some(CollaborationMode {
                     mode: ModeKind::Plan,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: "gpt-restored".to_string(),
                         reasoning_effort: Some(ReasoningEffortConfig::High),
                         developer_instructions: None,
@@ -3821,6 +3826,7 @@ async fn inactive_thread_approval_bubbles_into_active_view() -> Result<()> {
         ThreadEventChannel::new_with_session(
             /*capacity*/ 1,
             ThreadSessionState {
+                active_model: None,
                 approval_policy: AskForApproval::OnRequest,
                 permission_profile: PermissionProfile::workspace_write(),
                 rollout_path: Some(test_path_buf("/tmp/agent-rollout.jsonl")),
@@ -3989,6 +3995,7 @@ async fn side_defers_subagent_approval_overlay_until_side_exits() -> Result<()> 
         ThreadEventChannel::new_with_session(
             /*capacity*/ 4,
             ThreadSessionState {
+                active_model: None,
                 approval_policy: AskForApproval::OnRequest,
                 permission_profile: PermissionProfile::workspace_write(),
                 rollout_path: Some(test_path_buf("/tmp/agent-rollout.jsonl")),
@@ -4514,6 +4521,7 @@ async fn inactive_thread_approval_badge_clears_after_turn_completion_notificatio
         ThreadEventChannel::new_with_session(
             /*capacity*/ 4,
             ThreadSessionState {
+                active_model: None,
                 approval_policy: AskForApproval::OnRequest,
                 permission_profile: PermissionProfile::workspace_write(),
                 rollout_path: Some(test_path_buf("/tmp/agent-rollout.jsonl")),
@@ -4682,6 +4690,7 @@ async fn inactive_thread_started_notification_preserves_primary_model_when_path_
         ThreadId::from_string("00000000-0000-0000-0000-000000000302").expect("valid thread");
     let primary_cwd = test_path_buf("/tmp/main").abs();
     let primary_session = ThreadSessionState {
+        active_model: None,
         approval_policy: AskForApproval::OnRequest,
         permission_profile: PermissionProfile::workspace_write(),
         runtime_workspace_roots: vec![primary_cwd.clone()],
@@ -4767,6 +4776,7 @@ async fn thread_read_session_state_does_not_reuse_primary_permission_profile() {
         ThreadId::from_string("00000000-0000-0000-0000-000000000402").expect("valid thread");
     let primary_cwd = test_path_buf("/tmp/main").abs();
     let primary_session = ThreadSessionState {
+        active_model: None,
         approval_policy: AskForApproval::OnRequest,
         permission_profile: PermissionProfile::workspace_write(),
         runtime_workspace_roots: vec![primary_cwd.clone()],
@@ -5290,6 +5300,7 @@ async fn side_thread_snapshot_does_not_refresh_from_fork_history() {
     let snapshot = ThreadEventSnapshot {
         delegated_turns: Vec::new(),
         session: Some(ThreadSessionState {
+            active_model: None,
             rollout_path: None,
             ..test_thread_session(side_thread_id, test_path_buf("/tmp/side"))
         }),
@@ -6115,6 +6126,7 @@ async fn make_test_app() -> Box<App> {
         },
         daemon_cli_executable: None,
         pending_update_action: None,
+        interruption_recovery: RecoveryRun::disabled(),
         pending_shutdown_exit_thread_id: None,
         windows_sandbox: WindowsSandboxState::default(),
         thread_event_channels: HashMap::new(),
@@ -6234,6 +6246,7 @@ pub(super) async fn make_test_app_with_channels() -> (
             },
             daemon_cli_executable: None,
             pending_update_action: None,
+            interruption_recovery: RecoveryRun::disabled(),
             pending_shutdown_exit_thread_id: None,
             windows_sandbox: WindowsSandboxState::default(),
             thread_event_channels: HashMap::new(),
@@ -8917,6 +8930,7 @@ async fn refreshed_snapshot_session_persists_resumed_turns() {
         }],
     )];
     let resumed_session = ThreadSessionState {
+        active_model: None,
         cwd: test_path_buf("/tmp/refreshed").abs(),
         runtime_workspace_roots: Vec::new(),
         instruction_source_paths: Vec::new(),
@@ -9116,6 +9130,7 @@ async fn override_turn_context_sends_thread_settings_update() {
         let collaboration_mode = CollaborationMode {
             mode: ModeKind::Plan,
             settings: Settings {
+                model_routing: Default::default(),
                 model: "gpt-5.4".to_string(),
                 reasoning_effort: Some(ReasoningEffortConfig::High),
                 developer_instructions: None,
@@ -9626,6 +9641,7 @@ async fn inactive_thread_settings_notification_updates_cached_collaboration_mode
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Plan,
         settings: Settings {
+            model_routing: Default::default(),
             model: "gpt-plan".to_string(),
             reasoning_effort: Some(ReasoningEffortConfig::High),
             developer_instructions: Some("draft a plan first".to_string()),

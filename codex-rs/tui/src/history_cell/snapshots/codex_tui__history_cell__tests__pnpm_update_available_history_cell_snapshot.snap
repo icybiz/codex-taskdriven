@@ -2,10 +2,11 @@
 source: tui/src/history_cell/tests.rs
 expression: rendered
 ---
-╭─────────────────────────────────────────────────╮
-│ ✨ Update available! 0.0.0 -> 9.9.9             │
-│ Run pnpm add -g @openai/codex to update.        │
-│                                                 │
-│ See full release notes:                         │
-│ https://github.com/openai/codex/releases/latest │
-╰─────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ✨ Update available! 0.0.0 -> 9.9.9                                                                        │
+│ Rebuild and deploy the hardened Codex centrally from the central build pipeline; do not self-update this   │
+│ binary.                                                                                                    │
+│                                                                                                            │
+│ See full release notes:                                                                                    │
+│ https://github.com/openai/codex/releases/latest                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -1,5 +1,8 @@
 #![cfg(not(debug_assertions))]
 
+use crate::app_event::AppEvent;
+use crate::app_event_sender::AppEventSender;
+use crate::history_cell::UpdateAvailableHistoryCell;
 use crate::legacy_core::config::Config;
 use crate::npm_registry;
 use crate::npm_registry::NpmPackageInfo;
@@ -33,10 +36,12 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
     let version_file = version_filepath(config);
     let info = read_version_info(&version_file).ok();
 
-    if match &info {
-        None => true,
-        Some(info) => info.last_checked_at < Utc::now() - Duration::hours(20),
-    } {
+    if !crate::version::IS_HARDENED_BUILD
+        && match &info {
+            None => true,
+            Some(info) => info.last_checked_at < Utc::now() - Duration::hours(20),
+        }
+    {
         let http_client_factory = config.http_client_factory();
         // Refresh the cached latest version in the background so TUI startup
         // isn’t blocked by a network call. The UI reads the previously cached
@@ -75,7 +80,7 @@ async fn check_for_update(
     version_file: &Path,
     action: Option<UpdateAction>,
     http_client_factory: HttpClientFactory,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
     let client_pool = RouteAwareClientPool::with_chatgpt_cloudflare_cookies(
         http_client_factory,
         ClientRouteClass::Other,
@@ -118,7 +123,7 @@ async fn check_for_update(
     // Preserve any previously dismissed version if present.
     let prev_info = read_version_info(version_file).ok();
     let info = VersionInfo {
-        latest_version,
+        latest_version: latest_version.clone(),
         last_checked_at: Utc::now(),
         dismissed_version: prev_info.and_then(|p| p.dismissed_version),
     };
@@ -128,7 +133,80 @@ async fn check_for_update(
         tokio::fs::create_dir_all(parent).await?;
     }
     tokio::fs::write(version_file, json_line).await?;
-    Ok(())
+    Ok(latest_version)
+}
+
+pub(crate) fn next_update_refresh_delay(config: &Config) -> Option<std::time::Duration> {
+    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+        return None;
+    }
+    let version_file = version_filepath(config);
+    let Ok(info) = read_version_info(&version_file) else {
+        return Some(std::time::Duration::ZERO);
+    };
+    let next_check = info.last_checked_at + Duration::hours(20);
+    Some(
+        (next_check - Utc::now())
+            .to_std()
+            .unwrap_or(std::time::Duration::ZERO),
+    )
+}
+
+pub(crate) fn spawn_hardened_update_watcher(
+    config: &Config,
+    update_tx: AppEventSender,
+    mut last_notified_version: Option<String>,
+) {
+    if !crate::version::IS_HARDENED_BUILD {
+        return;
+    }
+    let Some(initial_delay) = next_update_refresh_delay(config) else {
+        return;
+    };
+    let update_config = config.clone();
+    tokio::spawn(async move {
+        let mut delay = initial_delay;
+        loop {
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
+            match refresh_upgrade_version(&update_config).await {
+                Ok(Some(latest_version)) => {
+                    if last_notified_version.as_deref() != Some(latest_version.as_str()) {
+                        update_tx.send(AppEvent::InsertHistoryCell(Box::new(
+                            UpdateAvailableHistoryCell::new(
+                                latest_version.clone(),
+                                /*update_action*/ None,
+                            ),
+                        )));
+                        last_notified_version = Some(latest_version);
+                    }
+                    delay = std::time::Duration::from_secs(20 * 60 * 60);
+                }
+                Ok(None) => {
+                    last_notified_version = None;
+                    delay = std::time::Duration::from_secs(20 * 60 * 60);
+                }
+                Err(err) => {
+                    tracing::warn!(%err, "hardened Codex update check failed");
+                    delay = std::time::Duration::from_secs(60 * 60);
+                }
+            }
+        }
+    });
+}
+
+pub(crate) async fn refresh_upgrade_version(config: &Config) -> anyhow::Result<Option<String>> {
+    let version_file = version_filepath(config);
+    let latest = check_for_update(
+        &version_file,
+        update_action::get_update_action(),
+        config.http_client_factory(),
+    )
+    .await?;
+    Ok(is_newer(&latest, CODEX_CLI_VERSION)
+        .unwrap_or(false)
+        .then_some(latest))
 }
 
 async fn fetch_latest_github_release_version(

@@ -2008,6 +2008,7 @@ server_notification_definitions! {
     /// Deprecated: Use `ContextCompaction` item type instead.
     ContextCompacted => "thread/compacted" (v2::ContextCompactedNotification),
     ModelRerouted => "model/rerouted" (v2::ModelReroutedNotification),
+    TurnModelUpdated => "turn/model/updated" (v2::TurnModelUpdatedNotification),
     ModelVerification => "model/verification" (v2::ModelVerificationNotification),
     AuthRecoveryStarted => "modelProvider/authRecoveryStarted" (v2::AuthRecoveryNotification),
     AuthRecoveryCompleted => "modelProvider/authRecoveryCompleted" (v2::AuthRecoveryNotification),
@@ -3314,6 +3315,7 @@ mod tests {
                     },
                     "model": "gpt-5",
                     "modelProvider": "openai",
+                    "modelRouting": "fixed",
                     "serviceTier": null,
                     "disabledPluginIds": [],
                     "cwd": absolute_path_string("tmp"),
@@ -4534,6 +4536,7 @@ mod tests {
                     collaboration_mode: codex_protocol::config_types::CollaborationMode {
                         mode: codex_protocol::config_types::ModeKind::Default,
                         settings: codex_protocol::config_types::Settings {
+                            model_routing: Default::default(),
                             model: "gpt-5.4".to_string(),
                             reasoning_effort: None,
                             developer_instructions: None,

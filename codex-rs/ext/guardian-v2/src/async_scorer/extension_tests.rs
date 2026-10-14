@@ -1033,6 +1033,9 @@ async fn sample_configured_conversation_history_with_delivery(
         .await?;
     }
     let conversation_history = test.codex.conversation_history_snapshot().await;
+    let invocation_model = captured_model
+        .map(Arc::new)
+        .unwrap_or_else(|| invocation_model(thread_store));
 
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
@@ -1202,15 +1205,18 @@ impl GuardianFailureFixture {
             .await,
             None
         );
+        let recorded_metrics = thread_store
+            .get::<RecordingMetrics>()
+            .unwrap()
+            .0
+            .lock()
+            .unwrap()
+            .clone();
         assert!(
-            thread_store
-                .get::<RecordingMetrics>()
-                .unwrap()
-                .0
-                .lock()
-                .unwrap()
+            recorded_metrics
                 .iter()
-                .any(|sample| sample == &fast_decision_metric("deferred", expected_reason))
+                .any(|sample| sample == &fast_decision_metric("deferred", expected_reason)),
+            "recorded metrics: {recorded_metrics:#?}"
         );
         Ok(())
     }
@@ -1258,7 +1264,7 @@ async fn contributor_fails_closed_when_model_configuration_is_invalid() -> Resul
         .insert(parent_model);
 
     fixture.score_tool(ToolName::plain("read_file")).await;
-    fixture.assert_fails_closed("elevated_risk").await
+    fixture.assert_fails_closed("scoring_failure").await
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3497,9 +3503,11 @@ async fn cached_approval(
             return None;
         }
     };
+    let model_info = invocation_model(store);
     let input = codex_extension_api::ApprovalDecisionInput {
         permissions: Some(&Default::default()),
         approval_id: "cache-probe",
+        model_info: &model_info,
         tool_call_id: action.get("id").and_then(serde_json::Value::as_str),
         action: &action,
         thread_id: codex_protocol::ThreadId::from_string(store.level_id()).unwrap(),
@@ -3517,6 +3525,31 @@ async fn cached_approval(
         Some(codex_extension_api::ApprovalDecision::Allow) => Some(ReviewDecision::Approved),
         _ => None,
     }
+}
+
+fn invocation_model(store: &ExtensionData) -> Arc<codex_protocol::openai_models::ModelInfo> {
+    store.get().expect("parent model metadata")
+}
+
+fn set_score_authorization(store: &ExtensionData, authorization: ScoreAuthorization) {
+    let model = invocation_model(store);
+    let base = store
+        .get::<GuardianV2Config>()
+        .expect("Guardian configuration");
+    let config = base
+        .with_model_defaults(
+            model
+                .model_messages
+                .as_ref()
+                .and_then(|messages| messages.guardian_v2.as_ref()),
+        )
+        .expect("valid Guardian model configuration");
+    let progress = store
+        .get::<GuardianV2ScoreProgress>()
+        .expect("score progress");
+    let mut context = progress.authorization.lock().unwrap();
+    context.begin(&model, &config);
+    context.authorization = Some(authorization);
 }
 
 fn review_scope(action: &serde_json::Value) -> Option<GuardianScope> {

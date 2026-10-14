@@ -1620,6 +1620,7 @@ impl ThreadRequestProcessor {
         let thread_originator = config_snapshot.originator.clone();
 
         let response = ThreadStartResponse {
+            model_routing: config_snapshot.collaboration_mode.settings.model_routing,
             thread: thread.clone(),
             disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
             model: config_snapshot.model,
@@ -4249,8 +4250,16 @@ impl ThreadRequestProcessor {
         let InitialHistory::Resumed(resumed_history) = thread_history else {
             return None;
         };
+        // A stored routing choice belongs to this thread. Legacy threads stay
+        // fixed even if the global default was changed to automatic routing.
+        let restore_routing =
+            !has_model_resume_override(request_overrides.as_ref(), typesafe_overrides);
+        typesafe_overrides.model_routing = Some(codex_protocol::config_types::ModelRouting::Fixed);
         if let Some(persisted_settings) = latest_persisted_resume_settings(&resumed_history.history)
         {
+            if restore_routing {
+                typesafe_overrides.model_routing = Some(persisted_settings.model_routing);
+            }
             if typesafe_overrides.approval_policy.is_none() {
                 typesafe_overrides.approval_policy = Some(persisted_settings.approval_policy);
             }
@@ -5036,13 +5045,19 @@ impl ThreadRequestProcessor {
                 .is_some_and(|overrides| overrides.contains_key("approvals_reviewer"));
         let restore_permission_profile =
             !has_permission_override(request_overrides.as_ref(), &typesafe_overrides);
-        let needs_latest_settings =
-            restore_approval_policy || restore_approvals_reviewer || restore_permission_profile;
+        let restore_model_routing =
+            !has_model_resume_override(request_overrides.as_ref(), &typesafe_overrides);
+        typesafe_overrides.model_routing = Some(codex_protocol::config_types::ModelRouting::Fixed);
+        let needs_latest_settings = restore_approval_policy
+            || restore_approvals_reviewer
+            || restore_permission_profile
+            || restore_model_routing;
         let loaded_parent = self.thread_manager.get_thread(source_thread_id).await.ok();
         let loaded_parent_settings = if paginated_source && needs_latest_settings {
             if let Some(parent) = loaded_parent.as_ref() {
                 let snapshot = parent.thread_settings_snapshot().await;
                 Some(PersistedResumeSettings {
+                    model_routing: snapshot.collaboration_mode.settings.model_routing,
                     approval_policy: snapshot.approval_policy,
                     approvals_reviewer: Some(snapshot.approvals_reviewer),
                     active_permission_profile: snapshot.active_permission_profile,
@@ -5093,6 +5108,9 @@ impl ThreadRequestProcessor {
             )
         });
         if let Some(persisted_settings) = persisted_settings {
+            if restore_model_routing {
+                typesafe_overrides.model_routing = Some(persisted_settings.model_routing);
+            }
             if restore_approval_policy {
                 typesafe_overrides.approval_policy = Some(persisted_settings.approval_policy);
             }
@@ -5376,6 +5394,7 @@ impl ThreadRequestProcessor {
             thread_response_active_permission_profile(config_snapshot.active_permission_profile);
         let thread_originator = config_snapshot.originator.clone();
         let response = ThreadForkResponse {
+            model_routing: config_snapshot.collaboration_mode.settings.model_routing,
             thread: thread.clone(),
             disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
             model: session_configured.model,

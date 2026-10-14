@@ -1448,6 +1448,7 @@ async fn thread_resume_preserves_acknowledged_model_effort_and_approvals_reviewe
             collaboration_mode: Some(CollaborationMode {
                 mode: ModeKind::Plan,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: "gpt-5.2-codex".to_string(),
                     reasoning_effort: None,
                     developer_instructions: Some("Persisted plan instructions".to_string()),

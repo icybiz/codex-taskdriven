@@ -137,6 +137,7 @@ fn disabled_permission_user_turn(
         collaboration_mode: Some(CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model,
                 reasoning_effort: None,
                 developer_instructions: None,

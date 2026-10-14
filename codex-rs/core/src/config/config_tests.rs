@@ -10771,6 +10771,21 @@ fn config_toml_deserializes_mcp_oauth_callback_url() {
     );
 }
 
+#[test]
+fn config_toml_deserializes_yolo_and_plain_transcript() {
+    let toml = r#"
+yolo = true
+plain_transcript = "/tmp/codex-plain-transcript.txt"
+"#;
+    let cfg: ConfigToml = toml::from_str(toml).expect("hardened Codex settings should deserialize");
+
+    assert_eq!(cfg.yolo, Some(true));
+    assert_eq!(
+        cfg.plain_transcript.as_ref().map(AsRef::as_ref),
+        Some(std::path::Path::new("/tmp/codex-plain-transcript.txt"))
+    );
+}
+
 #[tokio::test]
 async fn config_loads_mcp_oauth_callback_port_from_toml() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;

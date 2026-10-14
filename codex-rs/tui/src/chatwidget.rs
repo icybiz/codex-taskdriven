@@ -62,6 +62,8 @@ use crate::mention_codec::encode_history_mentions_at_elements;
 use crate::model_catalog::ModelCatalog;
 use crate::multi_agents;
 use crate::multi_agents::AgentMetadata;
+use crate::plain_transcript::PlainTranscript;
+use crate::plain_transcript::PlainTranscriptRole;
 use crate::session_state::SessionNetworkProxyRuntime;
 use crate::session_state::ThreadSessionState;
 use crate::status::RateLimitWindowDisplay;
@@ -377,6 +379,7 @@ mod service_tiers;
 mod settings;
 mod settings_popups;
 mod side;
+mod taskdriven;
 use self::safety_buffering::SafetyBufferingState;
 mod status_state;
 mod windows_sandbox_prompts;
@@ -387,7 +390,6 @@ mod status_controls;
 mod status_surfaces;
 mod streaming;
 use self::status_surfaces::CachedProjectRootName;
-mod taskdriven;
 mod thread_title_status;
 mod thread_usage;
 pub(crate) use self::thread_usage::ThreadUsageOutcome;
@@ -521,6 +523,7 @@ pub(crate) struct ChatWidget {
     codex_op_target: CodexOpTarget,
     bottom_pane: BottomPane,
     transcript: TranscriptState,
+    plain_transcript: Option<PlainTranscript>,
     config: Config,
     pub(crate) local_settings: crate::local_settings::LocalSettings,
     raw_output_mode: bool,
@@ -971,6 +974,45 @@ impl ChatWidget {
         }
     }
 
+    /// Record or update the raw markdown for the current agent turn.
+    fn record_agent_markdown(&mut self, message: &str, source: &str) {
+        if !message.is_empty() {
+            self.transcript
+                .record_agent_markdown(message.to_string(), source.to_string());
+        }
+    }
+
+    fn record_plain_transcript_session(&mut self, thread_id: ThreadId, cwd: &Path) {
+        let result = self
+            .plain_transcript
+            .as_mut()
+            .map(|transcript| transcript.begin_session(&thread_id.to_string(), cwd));
+        self.handle_plain_transcript_result(result);
+    }
+
+    fn record_plain_transcript_entry(&mut self, role: PlainTranscriptRole, text: &str) {
+        let result = self
+            .plain_transcript
+            .as_mut()
+            .map(|transcript| transcript.append(role, text));
+        self.handle_plain_transcript_result(result);
+    }
+
+    fn handle_plain_transcript_result(&mut self, result: Option<std::io::Result<()>>) {
+        let Some(Err(err)) = result else {
+            return;
+        };
+        let path = self
+            .plain_transcript
+            .as_ref()
+            .map(|transcript| crate::plain_transcript::safe_display_path(transcript.path()))
+            .unwrap_or_else(|| "configured transcript file".to_string());
+        self.plain_transcript = None;
+        tracing::error!(%err, %path, "plain transcript disabled after a write failure");
+        self.add_error_message(format!(
+            "Plain transcript disabled because `{path}` could not be written: {err}"
+        ));
+    }
     pub(crate) fn open_feedback_note(
         &mut self,
         category: crate::app_event::FeedbackCategory,

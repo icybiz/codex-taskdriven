@@ -45,6 +45,7 @@ fn read_only_text_turn(
         collaboration_mode: Some(CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model,
                 reasoning_effort: test.config.model_reasoning_effort.clone(),
                 developer_instructions: None,

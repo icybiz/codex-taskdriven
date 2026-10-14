@@ -37,6 +37,20 @@ impl ChatWidget {
         let app_event_tx = AppEventSender::new(app_event_tx.app_event_tx);
         let model = model.filter(|m| !m.trim().is_empty());
         let mut config = config;
+        let (plain_transcript, plain_transcript_startup_error) =
+            match config.plain_transcript.as_ref() {
+                Some(path) => match PlainTranscript::open(path.as_path()) {
+                    Ok(transcript) => (Some(transcript), None),
+                    Err(err) => (
+                        None,
+                        Some(format!(
+                            "Plain transcript disabled because `{}` could not be opened: {err}",
+                            crate::plain_transcript::safe_display_path(path.as_path())
+                        )),
+                    ),
+                },
+                None => (None, None),
+            };
         config.model = model.clone();
         let prevent_idle_sleep = config.features.enabled(Feature::PreventIdleSleep);
         let placeholder = PLACEHOLDER.to_string();
@@ -53,6 +67,7 @@ impl ChatWidget {
             .and_then(|mask| mask.model.clone())
             .unwrap_or_else(|| model_for_header.clone());
         let fallback_default = Settings {
+            model_routing: config.model_routing,
             model: header_model.clone(),
             reasoning_effort: None,
             developer_instructions: None,
@@ -65,14 +80,19 @@ impl ChatWidget {
         if let Ok(taskdriven) =
             codex_taskdriven::TaskDrivenConfig::load(config.codex_home.as_path())
             && taskdriven.enabled
+            && config.features.enabled(Feature::AutonomousWorkPhase)
+            && config.features.enabled(Feature::StepModelSwitching)
             && let Ok(presets) = model_catalog.try_list_models()
             && Self::validate_taskdriven_catalog(&taskdriven, &presets).is_ok()
             && let Some(initial) = taskdriven.initial()
         {
             header_model = initial.model.clone();
+            config.model_routing = codex_protocol::config_types::ModelRouting::TaskDriven;
             current_collaboration_mode.settings.model = initial.model.clone();
             current_collaboration_mode.settings.reasoning_effort =
                 Some(initial.reasoning_effort.clone());
+            current_collaboration_mode.settings.model_routing =
+                codex_protocol::config_types::ModelRouting::TaskDriven;
             current_collaboration_mode.settings.developer_instructions =
                 Some(codex_taskdriven::enable_instructions(
                     current_collaboration_mode
@@ -143,6 +163,7 @@ impl ChatWidget {
                 skills: None,
             }),
             transcript: TranscriptState::new(active_cell),
+            plain_transcript,
             raw_output_mode: local_settings.tui.raw_output_mode,
             config,
             local_settings,
@@ -350,6 +371,11 @@ impl ChatWidget {
             .bottom_pane
             .set_token_activity_command_enabled(widget.has_codex_backend_auth);
         widget.refresh_status_surfaces();
+
+        if let Some(message) = plain_transcript_startup_error {
+            tracing::error!(%message, "plain transcript could not be initialized");
+            widget.add_error_message(message);
+        }
 
         widget
     }

@@ -111,6 +111,7 @@ pub(crate) fn without_notification_media(notification: ServerNotification) -> Se
         | ServerNotification::ReasoningTextDelta(_)
         | ServerNotification::ContextCompacted(_)
         | ServerNotification::ModelRerouted(_)
+        | ServerNotification::TurnModelUpdated(_)
         | ServerNotification::ModelVerification(_)
         | ServerNotification::AuthRecoveryStarted(_)
         | ServerNotification::AuthRecoveryCompleted(_)

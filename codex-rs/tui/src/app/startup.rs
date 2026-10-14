@@ -396,6 +396,30 @@ impl App {
         {
             tracing::warn!(%error, "TUI task delegation is unavailable without its MCP server");
         }
+        let startup_resume_thread_id = match &session_selection {
+            SessionSelection::Resume(target_session) => Some(target_session.thread_id),
+            SessionSelection::StartFresh
+            | SessionSelection::Fork(_)
+            | SessionSelection::Exit
+            | SessionSelection::AgentsOverview => None,
+        };
+        let (interruption_recovery, recovery_notice) = match RecoveryRun::begin(
+            config.codex_home.as_path(),
+            config.cwd.as_path(),
+            startup_resume_thread_id,
+        ) {
+            Ok(result) => result,
+            Err(err) => {
+                tracing::error!(error = %err, "failed to initialize interruption recovery");
+                config.startup_warnings.push(format!(
+                    "Codex-Abbrucherkennung ist für diesen Lauf nicht verfügbar: {err}"
+                ));
+                (RecoveryRun::disabled(), None)
+            }
+        };
+        if let Some(notice) = recovery_notice {
+            config.startup_warnings.push(notice);
+        }
         let model_catalog = Arc::new(
             ModelCatalog::new(available_models.clone())
                 .with_collaboration_modes(bootstrap.collaboration_modes),
@@ -870,6 +894,7 @@ See the Codex keymap documentation for supported actions and examples."
             },
             daemon_cli_executable,
             pending_update_action: None,
+            interruption_recovery,
             pending_shutdown_exit_thread_id: None,
             windows_sandbox: WindowsSandboxState {
                 prompt_after_trust: should_prompt_windows_sandbox_nux_at_startup
@@ -937,6 +962,12 @@ See the Codex keymap documentation for supported actions and examples."
                 /*server_version*/ None,
             );
         }
+        #[cfg(not(debug_assertions))]
+        crate::updates::spawn_hardened_update_watcher(
+            &app.config,
+            app.app_event_tx.clone(),
+            upgrade_version.clone(),
+        );
         if start_in_agents_overview {
             app.open_agents_overview(&app_server);
         } else if !matches!(app.app_server_target, AppServerTarget::Embedded) {
@@ -1388,6 +1419,11 @@ See the Codex keymap documentation for supported actions and examples."
                 return Err(err);
             }
         };
+        if matches!(&exit_reason, ExitReason::UserRequested)
+            && let Err(err) = app.interruption_recovery.finish_clean()
+        {
+            tracing::warn!(error = %err, "failed to remove clean-exit recovery marker");
+        }
         Ok(app.exit_info(exit_reason))
     }
 }

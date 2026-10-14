@@ -8,6 +8,7 @@ export type { AccountTokenUsageDailyBucket } from "./AccountTokenUsageDailyBucke
 export type { AccountTokenUsageSummary } from "./AccountTokenUsageSummary";
 export type { AccountUpdatedNotification } from "./AccountUpdatedNotification";
 export type { ActivePermissionProfile } from "./ActivePermissionProfile";
+export type { ActiveTurnModel } from "./ActiveTurnModel";
 export type { AddCreditsNudgeCreditType } from "./AddCreditsNudgeCreditType";
 export type { AddCreditsNudgeEmailStatus } from "./AddCreditsNudgeEmailStatus";
 export type { AdditionalContextEntry } from "./AdditionalContextEntry";
@@ -614,6 +615,7 @@ export type { TurnError } from "./TurnError";
 export type { TurnInterruptParams } from "./TurnInterruptParams";
 export type { TurnInterruptResponse } from "./TurnInterruptResponse";
 export type { TurnItemsView } from "./TurnItemsView";
+export type { TurnModelUpdatedNotification } from "./TurnModelUpdatedNotification";
 export type { TurnModerationMetadataNotification } from "./TurnModerationMetadataNotification";
 export type { TurnPlanStep } from "./TurnPlanStep";
 export type { TurnPlanStepStatus } from "./TurnPlanStepStatus";

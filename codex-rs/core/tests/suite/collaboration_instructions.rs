@@ -41,6 +41,7 @@ fn collab_mode_with_mode_and_instructions(
     CollaborationMode {
         mode,
         settings: Settings {
+            model_routing: Default::default(),
             model: "gpt-5.4".to_string(),
             reasoning_effort: None,
             developer_instructions: instructions.map(str::to_string),
@@ -60,6 +61,7 @@ fn collab_mode_for_model(
     CollaborationMode {
         mode,
         settings: Settings {
+            model_routing: Default::default(),
             model: model.to_string(),
             reasoning_effort: None,
             developer_instructions: instructions.map(str::to_string),
@@ -1119,6 +1121,7 @@ async fn empty_collaboration_instructions_are_ignored() -> Result<()> {
             collaboration_mode: Some(CollaborationMode {
                 mode: ModeKind::Default,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: current_model,
                     reasoning_effort: None,
                     developer_instructions: Some("".to_string()),

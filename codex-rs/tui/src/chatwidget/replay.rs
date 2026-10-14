@@ -342,7 +342,12 @@ impl ChatWidget {
                     from_replay,
                 );
             }
-            ThreadItem::Plan { text, .. } => self.on_plan_item_completed(text),
+            ThreadItem::Plan { text, .. } => {
+                if !from_replay {
+                    self.record_plain_transcript_entry(PlainTranscriptRole::CodexPlan, &text);
+                }
+                self.on_plan_item_completed(text);
+            }
             ThreadItem::Reasoning {
                 id,
                 summary,

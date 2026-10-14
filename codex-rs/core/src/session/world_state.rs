@@ -4,6 +4,7 @@ use super::session::Session;
 use super::step_context::StepContext;
 use crate::connectors;
 use crate::context::TokenBudgetContext;
+use crate::context::WorkPhaseInstructions;
 use crate::context::world_state::AgentsMdState;
 use crate::context::world_state::AppsInstructionsState;
 use crate::context::world_state::CollaborationModeState;
@@ -117,6 +118,16 @@ impl Session {
             String::new()
         };
         let mut world_state = WorldState::default();
+        let work_phase_enabled = self.features.enabled(Feature::AutonomousWorkPhase)
+            && step_context
+                .settings
+                .selected_collaboration_mode()
+                .settings
+                .model_routing
+                == codex_protocol::config_types::ModelRouting::TaskDriven
+            && self.features.enabled(Feature::StepModelSwitching)
+            && !crate::guardian::is_basic_session_source(&turn_context.session_source);
+        world_state.add_section(WorkPhaseInstructions::new(work_phase_enabled));
         world_state.add_section(ModelInstructionsState::new(
             &model_info.slug,
             previous_model.as_deref(),

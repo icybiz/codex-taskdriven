@@ -228,6 +228,7 @@ use codex_protocol::error::Result as CodexResult;
 #[cfg(test)]
 use codex_protocol::exec_output::StreamOutput;
 
+mod active_model;
 mod code_mode_warning;
 mod config_refresh;
 pub(crate) mod context_window;
@@ -812,6 +813,11 @@ impl Session {
         let collaboration_mode = CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: if matches!(&session_source, SessionSource::SubAgent(_)) {
+                    codex_protocol::config_types::ModelRouting::Fixed
+                } else {
+                    config.model_routing
+                },
                 model: model.clone(),
                 reasoning_effort: config.model_reasoning_effort.clone(),
                 developer_instructions: None,
@@ -3930,9 +3936,21 @@ impl Session {
             "Your account was flagged for potentially high-risk cyber activity and this request was routed to gpt-5.2 as a fallback. To regain access to gpt-5.3-codex, apply for trusted access: {CYBER_VERIFY_URL} or learn more: {CYBER_SAFETY_URL}"
         );
 
+        let sequence = if self.features.enabled(Feature::StepModelSwitching) {
+            self.record_model_request(
+                turn_context,
+                server_model.clone(),
+                step_context.settings.effective_reasoning_effort(),
+            )
+            .await
+            .sequence
+        } else {
+            0
+        };
         self.send_event(
             turn_context,
             EventMsg::ModelReroute(ModelRerouteEvent {
+                sequence,
                 from_model: requested_model.clone(),
                 to_model: server_model.clone(),
                 reason: ModelRerouteReason::HighRiskCyberActivity,

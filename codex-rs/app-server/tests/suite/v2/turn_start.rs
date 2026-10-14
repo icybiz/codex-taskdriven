@@ -1682,6 +1682,7 @@ async fn turn_profile_tracks_blocking_tool_and_follow_up_sampling() -> Result<()
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Plan,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: "mock-model".to_string(),
                         reasoning_effort: Some(ReasoningEffort::Medium),
                         developer_instructions: None,
@@ -1754,6 +1755,7 @@ async fn turn_profile_tracks_blocking_tool_and_follow_up_sampling() -> Result<()
             collaboration_mode: Some(CollaborationMode {
                 mode: ModeKind::Default,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: "mock-model".to_string(),
                     reasoning_effort: Some(ReasoningEffort::Medium),
                     developer_instructions: None,
@@ -2527,6 +2529,7 @@ async fn turn_start_accepts_collaboration_mode_override_v2() -> Result<()> {
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model: "mock-model-collab".to_string(),
             reasoning_effort: Some(ReasoningEffort::High),
             developer_instructions: None,
@@ -2605,6 +2608,7 @@ async fn turn_start_uses_thread_feature_overrides_for_request_user_input_tool_de
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model: "mock-model-collab".to_string(),
             reasoning_effort: Some(ReasoningEffort::High),
             developer_instructions: None,

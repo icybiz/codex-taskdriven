@@ -157,6 +157,7 @@ mod hooks_rpc;
 mod ide_context;
 mod inline_visualization;
 pub(crate) mod insert_history;
+mod interruption_recovery;
 pub use insert_history::insert_history_lines;
 mod footer_hint;
 mod key_hint;
@@ -242,6 +243,8 @@ pub use update_action::DaemonUpdateSource;
 pub use update_action::UpdateAction;
 #[cfg(not(debug_assertions))]
 pub use update_action::get_update_action;
+pub use version::HARDENED_UPDATE_ORIGIN;
+pub use version::IS_HARDENED_BUILD;
 mod update_prompt;
 mod update_versions;
 mod updates;
@@ -1079,6 +1082,71 @@ fn restore_terminal_before_fatal_exit() {
         let _ = tui::restore_after_exit();
     }
     startup_recovery::print_unsent_draft();
+}
+
+fn should_use_yolo(
+    cli_yolo: bool,
+    config_yolo: bool,
+    has_cli_sandbox_mode: bool,
+    has_cli_approval_policy: bool,
+) -> bool {
+    cli_yolo || (config_yolo && !has_cli_sandbox_mode && !has_cli_approval_policy)
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct HardenedConfigSettings {
+    yolo: Option<bool>,
+    plain_transcript: Option<AbsolutePathBuf>,
+}
+
+fn hardened_settings_from_toml(
+    config: Option<&codex_config::TomlValue>,
+) -> std::io::Result<HardenedConfigSettings> {
+    let Some(config) = config else {
+        return Ok(HardenedConfigSettings::default());
+    };
+    let table = config.as_table().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "effective Codex configuration is not a TOML table",
+        )
+    })?;
+    let yolo = table
+        .get("yolo")
+        .map(|value| {
+            value.as_bool().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "`yolo` must be a boolean")
+            })
+        })
+        .transpose()?;
+    let plain_transcript = table
+        .get("plain_transcript")
+        .map(|value| {
+            let raw_path = value.as_str().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "`plain_transcript` must be a path string",
+                )
+            })?;
+            AbsolutePathBuf::from_absolute_path(PathBuf::from(raw_path)).map_err(|err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("`plain_transcript` must resolve to an absolute path: {err}"),
+                )
+            })
+        })
+        .transpose()?;
+    Ok(HardenedConfigSettings {
+        yolo,
+        plain_transcript,
+    })
+}
+
+fn hardened_user_settings(
+    config_layer_stack: &codex_config::ConfigLayerStack,
+) -> std::io::Result<HardenedConfigSettings> {
+    let user_config = config_layer_stack.effective_user_config();
+    hardened_settings_from_toml(user_config.as_ref())
 }
 
 pub async fn run_main(

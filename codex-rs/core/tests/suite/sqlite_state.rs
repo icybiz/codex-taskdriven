@@ -925,6 +925,7 @@ async fn mcp_call_marks_thread_memory_mode_polluted_when_configured() -> Result<
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

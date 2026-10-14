@@ -1849,6 +1849,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         default_enabled: false,
     },
     FeatureSpec {
+        id: Feature::AutonomousWorkPhase,
+        key: "autonomous_work_phase",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
         id: Feature::RealtimeConversation,
         key: "realtime_conversation",
         stage: Stage::Stable,

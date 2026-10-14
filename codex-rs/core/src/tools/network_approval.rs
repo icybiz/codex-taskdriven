@@ -4,7 +4,6 @@ use crate::guardian::GuardianNetworkAccessTrigger;
 use crate::guardian::GuardianReviewContext;
 use crate::network_policy_decision::denied_network_policy_message;
 use crate::session::session::Session;
-use crate::session::turn_context::TurnContext;
 use crate::session::turn_context::TurnEnvironment;
 use crate::tools::approvals::ApprovalAction;
 use crate::tools::approvals::ApprovalContext;
@@ -236,6 +235,7 @@ impl PendingHostApproval {
 }
 
 struct ActiveNetworkApprovalCall {
+    model_context: crate::guardian::GuardianModelContext,
     registration_id: String,
     turn_id: String,
     trigger: GuardianNetworkAccessTrigger,
@@ -730,11 +730,22 @@ impl NetworkApprovalService {
             pending_owner.complete(PendingApprovalDecision::Deny);
             return NetworkDecision::deny(REASON_NOT_ALLOWED);
         }
-        let review_context = GuardianReviewContext::from_resolved_settings(
+        let mut review_context = GuardianReviewContext::from_resolved_settings(
             Arc::clone(&turn_context),
             &settings,
             review_environments,
         );
+        if let Some(call) = owner_call.as_ref() {
+            review_context = review_context.with_model_context(&call.model_context);
+        } else if turn_context
+            .config
+            .features
+            .enabled(codex_features::Feature::StepModelSwitching)
+        {
+            // Unattributed traffic cannot borrow another model's review policy.
+            pending_owner.complete(PendingApprovalDecision::Deny);
+            return NetworkDecision::deny(REASON_NOT_ALLOWED);
+        }
         if !allows_network_approval_flow(review_context.approval_policy) {
             if let Some(owner_call) = owner_call.as_ref() {
                 self.record_call_outcome(&owner_call.registration_id, policy_denial_message);
@@ -1094,11 +1105,11 @@ pub(crate) fn build_network_policy_decider(
 
 pub(crate) async fn begin_network_approval(
     session: &Arc<Session>,
-    turn: &TurnContext,
-    environments: &TurnEnvironmentSnapshot,
+    step: &Arc<crate::session::step_context::StepContext>,
     managed_network_active: bool,
     spec: Option<NetworkApprovalSpec>,
 ) -> Result<Option<ActiveNetworkApproval>, ToolError> {
+    let turn = &step.turn;
     let NetworkApprovalSpec {
         network,
         trigger,
@@ -1220,6 +1231,7 @@ pub(crate) async fn begin_network_approval(
         .services
         .network_approval
         .register_call(ActiveNetworkApprovalCall {
+            model_context: crate::guardian::GuardianModelContext::from_settings(&step.settings),
             registration_id: registration_id.clone(),
             turn_id: turn.sub_id.clone(),
             trigger,
@@ -1227,7 +1239,7 @@ pub(crate) async fn begin_network_approval(
             command,
             environment_id,
             permission_profile,
-            environments: environments.clone(),
+            environments: step.environments.clone(),
             cancellation_token: cancellation_token.clone(),
         })
         .await;

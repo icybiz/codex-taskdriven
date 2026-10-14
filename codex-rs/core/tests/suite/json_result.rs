@@ -90,6 +90,7 @@ async fn codex_returns_json_result(model: String) -> anyhow::Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model,
                         reasoning_effort: None,
                         developer_instructions: None,

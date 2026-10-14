@@ -4,7 +4,9 @@
 import type { AbsolutePathBuf } from "../AbsolutePathBuf";
 import type { CollaborationMode } from "../CollaborationMode";
 import type { LegacyAppPathString } from "../LegacyAppPathString";
+import type { ModelRouting } from "../ModelRouting";
 import type { ReasoningEffort } from "../ReasoningEffort";
+import type { ActiveTurnModel } from "./ActiveTurnModel";
 import type { ApprovalsReviewer } from "./ApprovalsReviewer";
 import type { AskForApproval } from "./AskForApproval";
 import type { SandboxPolicy } from "./SandboxPolicy";

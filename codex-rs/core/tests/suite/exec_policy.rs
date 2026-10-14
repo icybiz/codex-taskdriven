@@ -49,6 +49,7 @@ fn collaboration_mode_for_model(model: String) -> CollaborationMode {
     CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort: None,
             developer_instructions: Some("exercise approvals in collaboration mode".to_string()),
@@ -81,6 +82,7 @@ async fn submit_user_turn(
                     Some(CollaborationMode {
                         mode: ModeKind::Default,
                         settings: Settings {
+                            model_routing: Default::default(),
                             model: session_model,
                             reasoning_effort: None,
                             developer_instructions: None,
@@ -573,6 +575,7 @@ async fn execpolicy_blocks_shell_invocation() -> Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,

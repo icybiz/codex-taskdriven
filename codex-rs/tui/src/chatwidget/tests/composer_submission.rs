@@ -1653,6 +1653,20 @@ async fn empty_enter_during_task_does_not_queue() {
     assert!(chat.input_queue.queued_user_messages.is_empty());
 }
 
+#[tokio::test]
+async fn failed_turn_start_keeps_tui_alive_and_restores_prompt() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    let prompt = UserMessage::from("keep this exact prompt");
+    chat.input_queue.user_turn_pending_start = true;
+    chat.safety_buffering_prompt = Some(prompt);
+
+    chat.on_turn_start_failed("turn/start failed for test".to_string());
+
+    assert!(!chat.input_queue.user_turn_pending_start);
+    assert_eq!(chat.bottom_pane.composer_text(), "keep this exact prompt");
+    assert!(chat.safety_buffering_prompt.is_none());
+}
+
 fn interrupted_history(
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
     prompt: &str,

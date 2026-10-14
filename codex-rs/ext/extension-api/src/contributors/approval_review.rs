@@ -31,6 +31,8 @@ pub trait SynchronousApprovalReviewer: Send + Sync {
 /// Inputs to Guardian's policy choice. Conversation and scores stay thread-owned.
 pub struct ApprovalDecisionInput<'a> {
     pub approval_id: &'a str,
+    /// Immutable parent model metadata captured by the action being approved.
+    pub model_info: &'a codex_protocol::openai_models::ModelInfo,
     /// Host tool invocation being approved, absent for approvals without a tool call.
     pub tool_call_id: Option<&'a str>,
     /// Host-resolved permission evidence; unavailable evidence cannot authorize cached approval.

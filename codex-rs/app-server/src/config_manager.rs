@@ -435,6 +435,12 @@ impl ConfigManager {
     ) -> std::io::Result<Config> {
         let policy_load = self.refresh_application_network_policy().await?;
         let mut request_overrides = request_overrides.unwrap_or_default();
+        if let Some(value) = request_overrides.get("model_routing") {
+            typesafe_overrides.model_routing =
+                Some(serde_json::from_value(value.clone()).map_err(|error| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+                })?);
+        }
         if let Some(value) = request_overrides.remove("bypass_hook_trust") {
             typesafe_overrides.bypass_hook_trust = Some(value.as_bool().ok_or_else(|| {
                 std::io::Error::new(

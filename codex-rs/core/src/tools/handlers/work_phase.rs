@@ -8,7 +8,9 @@ use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::parse_arguments;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExecutor;
+use codex_features::Feature;
 use codex_models_manager::ModelsManagerConfig;
+use codex_protocol::config_types::ModelRouting;
 use codex_protocol::protocol::TurnSettingsUpdate;
 use codex_protocol::protocol::TurnSettingsUpdateOutcome;
 use codex_taskdriven::TaskDrivenConfig;
@@ -108,9 +110,27 @@ impl ToolExecutor<ToolInvocation> for WorkPhaseHandler {
                     "TaskDriven switch reason must contain 1 to 300 bytes".to_string(),
                 ));
             }
-            if !matches!(invocation.source, ToolCallSource::Direct)
+            if !self.config.enabled
+                || !invocation
+                    .turn
+                    .config
+                    .features
+                    .enabled(Feature::AutonomousWorkPhase)
+                || !invocation
+                    .turn
+                    .config
+                    .features
+                    .enabled(Feature::StepModelSwitching)
+                || invocation
+                    .step_context
+                    .settings
+                    .selected_collaboration_mode()
+                    .settings
+                    .model_routing
+                    != ModelRouting::TaskDriven
+                || !matches!(invocation.source, ToolCallSource::Direct)
                 || !step_settings_are_current(&invocation.step_context)
-                || !codex_taskdriven::instructions_are_enabled(
+                || !(codex_taskdriven::instructions_are_enabled(
                     invocation
                         .step_context
                         .settings
@@ -118,10 +138,16 @@ impl ToolExecutor<ToolInvocation> for WorkPhaseHandler {
                         .settings
                         .developer_instructions
                         .as_deref(),
-                )
+                ) || codex_taskdriven::instructions_are_enabled(
+                    invocation
+                        .step_context
+                        .turn
+                        .developer_instructions
+                        .as_deref(),
+                ))
             {
                 return Err(FunctionCallError::RespondToModel(
-                    "TaskDriven switching requires a current direct model call with TaskDriven enabled"
+                    "TaskDriven switching requires an enabled, current, direct model call"
                         .to_string(),
                 ));
             }
@@ -157,6 +183,7 @@ impl ToolExecutor<ToolInvocation> for WorkPhaseHandler {
                     .apply_taskdriven_settings(
                         &invocation.step_context,
                         TurnSettingsUpdate {
+                            model_routing: Some(ModelRouting::TaskDriven),
                             model: Some(task.model.clone()),
                             effort: Some(Some(task.reasoning_effort.clone())),
                             ..Default::default()

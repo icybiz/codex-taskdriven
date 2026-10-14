@@ -486,6 +486,23 @@ impl ChatWidget {
         }
         self.dismiss_backend_banner_for_new_turn();
         self.note_realtime_typed_input(&submitted_message.text);
+        let mut transcript_prompt = submitted_message.text.clone();
+        for image in &submitted_message.local_images {
+            if !transcript_prompt.is_empty() && !transcript_prompt.ends_with('\n') {
+                transcript_prompt.push('\n');
+            }
+            transcript_prompt.push_str(&format!(
+                "[local image: {}]\n",
+                crate::plain_transcript::safe_display_path(&image.path)
+            ));
+        }
+        for _ in &submitted_message.remote_image_urls {
+            if !transcript_prompt.is_empty() && !transcript_prompt.ends_with('\n') {
+                transcript_prompt.push('\n');
+            }
+            transcript_prompt.push_str("[remote image attached]\n");
+        }
+        self.record_plain_transcript_entry(PlainTranscriptRole::User, &transcript_prompt);
         if render_in_history {
             self.input_queue.user_turn_pending_start = true;
             self.input_queue.pending_user_message_client_id = Some(client_user_message_id.clone());
