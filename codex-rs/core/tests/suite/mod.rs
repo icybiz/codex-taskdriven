@@ -223,6 +223,7 @@ mod stream_no_completed;
 mod subagent_dynamic_tools;
 mod subagent_notifications;
 mod subagent_service_tier;
+mod taskdriven;
 mod token_budget;
 mod token_usage_rollout;
 mod tool_harness;
@@ -255,6 +256,7 @@ mod web_search;
 mod web_search_system_proxy;
 mod websocket_fallback;
 mod window_headers;
+mod work_phase;
 mod workspace_roots;
 mod worktree_trust;
 

@@ -256,6 +256,7 @@ async fn thread_settings_update_emits_notification_and_updates_future_turns() ->
             collaboration_mode: Some(CollaborationMode {
                 mode: ModeKind::Default,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: model_id.clone(),
                     reasoning_effort: None,
                     developer_instructions: None,

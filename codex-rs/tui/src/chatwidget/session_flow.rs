@@ -119,6 +119,7 @@ impl ChatWidget {
         if connector_scope_changed {
             self.invalidate_connector_scope();
         }
+        self.record_plain_transcript_session(session.thread_id, session.cwd.as_path());
         let runtime_workspace_roots = session.runtime_workspace_roots.clone();
         self.config.workspace_roots = runtime_workspace_roots.clone();
         self.config
@@ -166,6 +167,13 @@ impl ChatWidget {
             Some(session.reasoning_effort.clone()),
             /*developer_instructions*/ None,
         );
+        // Routing can be restored without replacing the normal collaboration
+        // preset and its developer instructions with a synthetic empty mode.
+        self.config.model_routing = session
+            .collaboration_mode
+            .as_deref()
+            .map_or(session.model_routing, |mode| mode.settings.model_routing);
+        self.current_collaboration_mode.settings.model_routing = self.config.model_routing;
         if session.reasoning_effort == Some(ReasoningEffortConfig::Ultra) {
             self.set_plan_mode_reasoning_effort(Some(ReasoningEffortConfig::Ultra));
         }
@@ -174,6 +182,11 @@ impl ChatWidget {
                 self.set_effective_collaboration_mode(collaboration_mode.clone());
             }
             None => {
+                let developer_instructions = self
+                    .current_collaboration_mode
+                    .settings
+                    .developer_instructions
+                    .clone();
                 self.active_collaboration_mask = Self::initial_collaboration_mask(
                     &self.config,
                     self.model_catalog.as_ref(),
@@ -181,11 +194,19 @@ impl ChatWidget {
                 );
                 if let Some(mask) = self.active_collaboration_mask.as_mut() {
                     mask.reasoning_effort = Some(session.reasoning_effort.clone());
+                    mask.developer_instructions = Some(developer_instructions);
                 }
                 self.update_collaboration_mode_indicator();
             }
         }
-        let effort = self.effective_reasoning_effort();
+        // Install the resume snapshot before the first status/header refresh.
+        // A future selection must not briefly label an already running request.
+        if let Some(model) = session.active_model.as_ref()
+            && model.thread_id == session.thread_id.to_string()
+        {
+            self.restore_active_model_snapshot(model.clone());
+        }
+        let effort = self.displayed_reasoning_effort();
         self.bottom_pane
             .set_active_reasoning_effort_baseline(effort.as_ref());
         self.refresh_model_display();

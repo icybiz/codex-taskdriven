@@ -295,6 +295,7 @@ fn configured_settings() -> StepSettings {
         collaboration_mode: CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model: "model-a".to_string(),
                 reasoning_effort: Some(ReasoningEffort::Low),
                 developer_instructions: Some("keep these instructions".to_string()),
@@ -355,6 +356,7 @@ fn collaboration_replacement_wins_and_effort_clear_remains_sparse() {
     let replacement = CollaborationMode {
         mode: ModeKind::Plan,
         settings: Settings {
+            model_routing: Default::default(),
             model: "model-b".to_string(),
             reasoning_effort: Some(ReasoningEffort::Medium),
             developer_instructions: None,

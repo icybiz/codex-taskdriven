@@ -731,6 +731,7 @@ async fn review_uses_updated_turn_permissions_and_approval_policy() {
             collaboration_mode: Some(CollaborationMode {
                 mode: ModeKind::Plan,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: "gpt-5.2".to_string(),
                     reasoning_effort: Some(ReasoningEffort::XHigh),
                     developer_instructions: Some("Parent planning instructions".to_string()),
@@ -839,6 +840,7 @@ async fn review_uses_updated_turn_permissions_and_approval_policy() {
         Some(CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model: "gpt-5.4".to_string(),
                 reasoning_effort: Some(ReasoningEffort::Medium),
                 developer_instructions: None,

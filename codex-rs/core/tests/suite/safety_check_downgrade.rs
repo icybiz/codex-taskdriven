@@ -56,6 +56,7 @@ fn disabled_text_turn(test: &TestCodex, text: &str) -> TurnInputRequest {
         collaboration_mode: Some(CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: Default::default(),
                 model: test.session_configured.model.clone(),
                 reasoning_effort: test.config.model_reasoning_effort.clone(),
                 developer_instructions: None,

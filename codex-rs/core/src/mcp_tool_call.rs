@@ -338,7 +338,7 @@ pub(crate) async fn handle_mcp_tool_call(
                     &call_id,
                     invocation,
                     item_metadata.clone(),
-                    ResolvedModelMessages::from_model(turn_context.model_info())
+                    ResolvedModelMessages::from_model(&step_context.settings.model_info)
                         .auto_review()
                         .timeout_instructions
                         .to_string(),
@@ -1255,6 +1255,25 @@ impl Session {
             .get(&(server.to_string(), call_id.to_string()))
             .and_then(std::sync::Weak::upgrade)
             .map(|metadata| (*metadata).clone())
+    }
+
+    pub(crate) fn mcp_tool_review_context(
+        &self,
+        sub_id: &str,
+        call_id: &str,
+        server: &str,
+    ) -> Option<GuardianReviewContext> {
+        let metadata = self
+            .mcp_tool_approval_metadata
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&(server.to_string(), call_id.to_string()))
+            .and_then(std::sync::Weak::upgrade)?;
+        let Some(invocation) = metadata.invocation.as_ref() else {
+            return None;
+        };
+        (invocation.server == server && metadata.review_context.turn().sub_id == sub_id)
+            .then(|| metadata.review_context.clone())
     }
 }
 

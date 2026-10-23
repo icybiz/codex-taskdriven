@@ -90,11 +90,13 @@ impl ChatWidget {
             .collect();
 
         let current_model = self.current_model();
+        let taskdriven_selected = self.taskdriven_selected();
         let current_label = presets
             .iter()
             .find(|preset| preset.model.as_str() == current_model)
             .map(|preset| preset.display_name.clone())
             .unwrap_or_else(|| self.model_display_name().to_string());
+        let taskdriven_item = self.taskdriven_selection_item(&presets);
 
         let (mut auto_presets, other_presets): (Vec<ModelPreset>, Vec<ModelPreset>) = presets
             .into_iter()
@@ -144,12 +146,12 @@ impl ChatWidget {
                 SelectionItem {
                     name: preset.display_name.clone(),
                     description,
-                    is_current: model.as_str() == current_model,
+                    is_current: !taskdriven_selected && model.as_str() == current_model,
                     secondary_action: if requires_advanced_selection {
                         None
                     } else {
                         self.session_model_selection_action(
-                            model.clone(),
+                            model,
                             Some(preset.default_reasoning_effort),
                         )
                     },
@@ -160,6 +162,10 @@ impl ChatWidget {
                 }
             })
             .collect();
+
+        if let Some(item) = taskdriven_item {
+            items.insert(0, item);
+        }
 
         if !other_presets.is_empty() {
             model_ids.push("All models".to_string());
@@ -233,7 +239,8 @@ impl ChatWidget {
         presets: Vec<ModelPreset>,
         view_id: &'static str,
     ) {
-        if presets.is_empty() {
+        let taskdriven_item = self.taskdriven_selection_item(&presets);
+        if presets.is_empty() && taskdriven_item.is_none() {
             self.bottom_pane.dismiss_view_by_id(view_id);
             self.add_info_message(
                 "No additional models are available right now.".to_string(),
@@ -242,12 +249,13 @@ impl ChatWidget {
             return;
         }
 
-        let mut items: Vec<SelectionItem> = Vec::new();
+        let taskdriven_selected = self.taskdriven_selected();
+        let mut items: Vec<SelectionItem> = taskdriven_item.into_iter().collect();
         let model_ids = presets.iter().map(|preset| preset.model.clone()).collect();
         for preset in presets.into_iter() {
             let description =
                 (!preset.description.is_empty()).then_some(preset.description.to_string());
-            let is_current = preset.model.as_str() == self.current_model();
+            let is_current = !taskdriven_selected && preset.model.as_str() == self.current_model();
             let direct_effort = match preset.supported_reasoning_efforts.as_slice() {
                 [] => Some(preset.default_reasoning_effort.clone()),
                 [option] => Some(option.effort.clone()),
@@ -299,7 +307,11 @@ impl ChatWidget {
             .and_then(|effort| self.ultra_reasoning_concurrency_warning(effort));
         let thread_id = self.thread_id();
         let sparkle_thread = self.sparkle_thread_for_picker_action(&model_for_action);
+        let disable_taskdriven = self.taskdriven_selected();
         vec![Box::new(move |tx| {
+            if disable_taskdriven {
+                tx.send(AppEvent::SetTaskDrivenEnabled(false));
+            }
             if model_for_action == LUNA_RESERVE_MODEL {
                 // Reserve is temporary: update the active task without persisting a model default.
                 if let Some(thread_id) = thread_id {

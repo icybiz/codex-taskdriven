@@ -544,6 +544,11 @@ impl TurnContext {
         Arc::clone(&self.next_step_settings.load().model_info)
     }
 
+    #[cfg(test)]
+    pub(crate) fn next_step_settings_for_test(&self) -> Arc<ResolvedStepSettings> {
+        self.next_step_settings.load_full()
+    }
+
     /// Legacy: returns the frozen initial-turn model metadata.
     /// Step-scoped consumers should use their captured `StepContext::settings`.
     pub(crate) fn model_info(&self) -> &Arc<ModelInfo> {
@@ -978,6 +983,11 @@ impl Session {
         per_turn_config
             .permissions
             .set_workspace_roots(workspace_roots);
+        per_turn_config.model_routing = session_configuration
+            .step_settings
+            .collaboration_mode
+            .settings
+            .model_routing;
         per_turn_config.model_reasoning_effort = session_configuration
             .step_settings
             .collaboration_mode

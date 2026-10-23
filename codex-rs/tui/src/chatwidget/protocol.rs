@@ -235,7 +235,20 @@ impl ChatWidget {
             ServerNotification::SkillsChanged(_) => {
                 self.refresh_skills_for_current_cwd(/*force_reload*/ true);
             }
-            ServerNotification::ModelRerouted(_) => {}
+            ServerNotification::TurnModelUpdated(notification) => {
+                self.on_turn_model_updated(notification);
+            }
+            ServerNotification::ModelRerouted(notification) => {
+                self.on_turn_model_updated(
+                    codex_app_server_protocol::TurnModelUpdatedNotification {
+                        sequence: notification.sequence,
+                        thread_id: notification.thread_id,
+                        turn_id: notification.turn_id,
+                        model: notification.to_model,
+                        effort: self.displayed_reasoning_effort(),
+                    },
+                );
+            }
             ServerNotification::ModelVerification(notification) => {
                 self.on_app_server_model_verification(&notification.verifications)
             }

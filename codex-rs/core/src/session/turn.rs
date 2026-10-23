@@ -1720,6 +1720,21 @@ async fn run_sampling_request(
     cancellation_token: CancellationToken,
 ) -> CodexResult<(SamplingRequestResult, Vec<ResponseItem>)> {
     let turn_context = Arc::clone(&step_context.turn);
+    if turn_context
+        .config
+        .features
+        .enabled(Feature::StepModelSwitching)
+    {
+        let model = sess
+            .record_model_request(
+                &turn_context,
+                step_context.settings.model_info.slug.clone(),
+                step_context.settings.effective_reasoning_effort(),
+            )
+            .await;
+        sess.send_event(&turn_context, EventMsg::TurnModelUpdated(model))
+            .await;
+    }
     let preempt = step_context.preempt.clone().unwrap_or_default();
     let _input_watch = if let Some(preempt) = &step_context.preempt {
         sess.input_queue
@@ -1909,6 +1924,7 @@ pub(crate) async fn built_tools(
     sess: &Session,
     turn_context: &TurnContext,
     model_info: &codex_protocol::openai_models::ModelInfo,
+    model_routing: codex_protocol::config_types::ModelRouting,
     environments: &TurnEnvironmentSnapshot,
     mcp: &Arc<codex_mcp::McpBinding>,
     step_store: &ExtensionData,
@@ -1978,6 +1994,7 @@ pub(crate) async fn built_tools(
         sess,
         turn_context,
         model_info,
+        model_routing,
         environments,
         mcp,
         apps_enabled,
@@ -2230,6 +2247,7 @@ pub(super) fn realtime_text_for_event(msg: &EventMsg) -> Option<RealtimeEventTex
         | EventMsg::RealtimeConversationRealtime(_)
         | EventMsg::RealtimeConversationClosed(_)
         | EventMsg::ModelReroute(_)
+        | EventMsg::TurnModelUpdated(_)
         | EventMsg::ModelVerification(_)
         | EventMsg::TurnModerationMetadata(_)
         | EventMsg::SafetyBuffering(_)

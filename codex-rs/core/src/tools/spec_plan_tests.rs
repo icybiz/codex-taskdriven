@@ -596,6 +596,11 @@ async fn reviewer_tool_policy_exclude_optional_core_tools() {
         &session,
         step_context.turn.as_ref(),
         &step_context.settings.model_info,
+        step_context
+            .settings
+            .selected_collaboration_mode()
+            .settings
+            .model_routing,
         &step_context.environments,
         &step_context.mcp,
         /*apps_enabled*/ false,
@@ -648,6 +653,11 @@ async fn reviewer_tool_policy_respect_managed_shell_restrictions() {
             &session,
             step_context.turn.as_ref(),
             &step_context.settings.model_info,
+            step_context
+                .settings
+                .selected_collaboration_mode()
+                .settings
+                .model_routing,
             &step_context.environments,
             &step_context.mcp,
             /*apps_enabled*/ false,
@@ -684,6 +694,11 @@ async fn reviewer_tool_policy_preserve_code_mode() {
         &session,
         step_context.turn.as_ref(),
         &step_context.settings.model_info,
+        step_context
+            .settings
+            .selected_collaboration_mode()
+            .settings
+            .model_routing,
         &step_context.environments,
         &step_context.mcp,
         /*apps_enabled*/ false,
@@ -754,6 +769,11 @@ async fn reviewer_tool_policy_require_managed_secondary_environments() {
             &session,
             step_context.turn.as_ref(),
             &step_context.settings.model_info,
+            step_context
+                .settings
+                .selected_collaboration_mode()
+                .settings
+                .model_routing,
             &step_context.environments,
             &step_context.mcp,
             /*apps_enabled*/ false,

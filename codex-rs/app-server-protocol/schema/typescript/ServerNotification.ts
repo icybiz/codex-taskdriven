@@ -80,6 +80,7 @@ import type { ThreadTokenUsageUpdatedNotification } from "./v2/ThreadTokenUsageU
 import type { ThreadUnarchivedNotification } from "./v2/ThreadUnarchivedNotification";
 import type { TurnCompletedNotification } from "./v2/TurnCompletedNotification";
 import type { TurnDiffUpdatedNotification } from "./v2/TurnDiffUpdatedNotification";
+import type { TurnModelUpdatedNotification } from "./v2/TurnModelUpdatedNotification";
 import type { TurnModerationMetadataNotification } from "./v2/TurnModerationMetadataNotification";
 import type { TurnPlanUpdatedNotification } from "./v2/TurnPlanUpdatedNotification";
 import type { TurnStartedNotification } from "./v2/TurnStartedNotification";

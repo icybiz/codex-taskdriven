@@ -698,6 +698,39 @@ impl ToolRegistry {
             return Err(err);
         }
 
+        if invocation
+            .turn
+            .config
+            .features
+            .enabled(codex_features::Feature::AutonomousWorkPhase)
+            && invocation
+                .step_context
+                .settings
+                .selected_collaboration_mode()
+                .settings
+                .model_routing
+                == codex_protocol::config_types::ModelRouting::TaskDriven
+            && invocation
+                .turn
+                .config
+                .features
+                .enabled(codex_features::Feature::StepModelSwitching)
+            && !crate::session::step_settings_are_current(&invocation.step_context)
+        {
+            let err = FunctionCallError::RespondToModel(
+                "The work phase changed after this response was generated. This tool was not executed. Continue with a fresh model response using the selected model before issuing more tools."
+                    .to_string(),
+            );
+            dispatch_trace.record_failed(&err);
+            notify_tool_finish_if_unclaimed(
+                &invocation,
+                call_state.as_deref(),
+                ToolCallOutcome::Blocked,
+            )
+            .await;
+            return Err(err);
+        }
+
         if let Some(pre_tool_use_payload) = tool.pre_tool_use_payload(&invocation) {
             match run_pre_tool_use_hooks(
                 &invocation.session,

@@ -2108,6 +2108,7 @@ impl App {
                 }
             }
             AppEvent::UpdateReasoningEffort(effort) => {
+                self.config.model_routing = codex_protocol::config_types::ModelRouting::Fixed;
                 self.on_update_reasoning_effort(effort.clone());
                 self.sync_active_thread_reasoning_setting(app_server, effort)
                     .await;
@@ -2125,8 +2126,10 @@ impl App {
                     return Ok(AppRunControl::Continue);
                 }
                 let model_changed = self.chat_widget.current_model() != model
-                    || self.chat_widget.current_collaboration_mode().model() != model;
+                    || self.chat_widget.current_collaboration_mode().model() != model
+                    || self.chat_widget.taskdriven_selected();
                 if model_changed {
+                    self.config.model_routing = codex_protocol::config_types::ModelRouting::Fixed;
                     self.chat_widget.set_model(&model);
                     self.sync_active_thread_model_setting(app_server, model, /*effort*/ None)
                         .await;
@@ -2149,6 +2152,94 @@ impl App {
                 if thread_id == self.chat_widget.thread_id() || self.voice_owner_thread_id().is_some() {
                     self.control_voice(control);
                 }
+            }
+            AppEvent::OpenTaskDrivenPopup => self.chat_widget.open_taskdriven_popup(),
+            AppEvent::OpenTaskDrivenProfilePopup => {
+                self.chat_widget.open_taskdriven_profile_popup();
+            }
+            AppEvent::OpenTaskDrivenUseCasePopup => {
+                self.chat_widget.open_taskdriven_use_case_popup();
+            }
+            AppEvent::OpenTaskDrivenModelPopup { task_id } => {
+                self.chat_widget.open_taskdriven_model_popup(task_id);
+            }
+            AppEvent::OpenTaskDrivenEffortPopup { task_id, model } => {
+                self.chat_widget
+                    .open_taskdriven_effort_popup(task_id, model);
+            }
+            AppEvent::OpenTaskDrivenInitialTaskPopup => {
+                self.chat_widget.open_taskdriven_initial_task_popup();
+            }
+            AppEvent::OpenTaskDrivenAddPrompt => {
+                self.chat_widget.open_taskdriven_add_prompt();
+            }
+            AppEvent::OpenTaskDrivenRemovePopup => {
+                self.chat_widget.open_taskdriven_remove_popup();
+            }
+            AppEvent::SetTaskDrivenEnabled(enabled) => {
+                match self.chat_widget.set_taskdriven_enabled(enabled) {
+                    Ok(mode) => self.apply_taskdriven_mode(app_server, mode).await,
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
+            AppEvent::SetTaskDrivenMapping {
+                task_id,
+                model,
+                effort,
+            } => match self
+                .chat_widget
+                .set_taskdriven_mapping(&task_id, model, effort)
+            {
+                Ok(Some(mode)) => self.apply_taskdriven_mode(app_server, mode).await,
+                Ok(None) => {}
+                Err(error) => self.chat_widget.add_error_message(error),
+            },
+            AppEvent::SetTaskDrivenInitialTask(task_id) => {
+                match self.chat_widget.set_taskdriven_initial_task(task_id) {
+                    Ok(Some(mode)) => self.apply_taskdriven_mode(app_server, mode).await,
+                    Ok(None) => {}
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
+            AppEvent::AddTaskDrivenTask(spec) => {
+                match self.chat_widget.add_taskdriven_task(&spec) {
+                    Ok(Some(mode)) => self.apply_taskdriven_mode(app_server, mode).await,
+                    Ok(None) => {}
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
+            AppEvent::RemoveTaskDrivenTask(task_id) => {
+                match self.chat_widget.remove_taskdriven_task(&task_id) {
+                    Ok(Some(mode)) => self.apply_taskdriven_mode(app_server, mode).await,
+                    Ok(None) => {}
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
+            AppEvent::SetTaskDrivenProfile(profile) => {
+                match self.chat_widget.set_taskdriven_profile(profile) {
+                    Ok(Some(mode)) => self.apply_taskdriven_mode(app_server, mode).await,
+                    Ok(None) => {}
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
+            AppEvent::SetTaskDrivenUseCase(use_case) => {
+                match self.chat_widget.set_taskdriven_use_case(use_case) {
+                    Ok(Some(mode)) => self.apply_taskdriven_mode(app_server, mode).await,
+                    Ok(None) => {}
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
+            AppEvent::MigrateTaskDrivenToAdaptive => {
+                match self.chat_widget.migrate_taskdriven_to_adaptive() {
+                    Ok(Some(mode)) => self.apply_taskdriven_mode(app_server, mode).await,
+                    Ok(None) => {}
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
+            AppEvent::UpdatePersonality(personality) => {
+                self.on_update_personality(personality);
+                self.sync_active_thread_personality_setting(app_server, personality)
+                    .await;
             }
             AppEvent::RealtimeWebrtcOfferCreated {
                 thread_id,
@@ -2189,6 +2280,7 @@ impl App {
                     ),
                 }
             }
+            AppEvent::SelectTaskDriven => self.select_taskdriven(app_server).await,
             AppEvent::SettingsSelectionClosed => {
                 #[cfg(any(target_os = "windows", test))]
                 let windows_sandbox_setup_pending =

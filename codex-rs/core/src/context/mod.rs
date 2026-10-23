@@ -55,6 +55,7 @@ mod unsupported_media;
 mod user_instructions;
 mod user_shell_command;
 mod user_verification_notice;
+mod work_phase_instructions;
 pub(crate) mod world_state;
 
 pub(crate) use agent_message_board_notification::AgentMessageBoardNotification;
@@ -137,4 +138,5 @@ pub use user_goal::UserGoalUpdate;
 pub(crate) use user_instructions::UserInstructions;
 pub(crate) use user_shell_command::UserShellCommand;
 pub(crate) use user_verification_notice::UserVerificationNotice;
+pub(crate) use work_phase_instructions::WorkPhaseInstructions;
 pub(crate) use world_state::ManagedDeveloperInstructions;

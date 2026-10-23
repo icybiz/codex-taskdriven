@@ -11,6 +11,7 @@ pub(super) struct TurnLifecycleState {
     /// Tracks whether codex-core currently considers an agent turn to be in progress.
     pub(super) agent_turn_running: bool,
     pub(super) last_turn_id: Option<String>,
+    pub(super) active_model: Option<codex_app_server_protocol::TurnModelUpdatedNotification>,
     pub(super) budget_limited_turn_ids: HashSet<String>,
     /// Completion labels already inserted into this thread's visible history.
     pub(super) rendered_completion_turn_ids: HashSet<String>,
@@ -23,6 +24,7 @@ impl TurnLifecycleState {
             sleep_inhibitor: SleepInhibitor::new(prevent_idle_sleep),
             agent_turn_running: false,
             last_turn_id: None,
+            active_model: None,
             budget_limited_turn_ids: HashSet::new(),
             rendered_completion_turn_ids: HashSet::new(),
             goal_status_active_turn_started_at: None,
@@ -51,6 +53,7 @@ impl TurnLifecycleState {
     pub(super) fn reset_thread(&mut self) {
         self.finish();
         self.last_turn_id = None;
+        self.active_model = None;
         self.budget_limited_turn_ids.clear();
         self.rendered_completion_turn_ids.clear();
     }

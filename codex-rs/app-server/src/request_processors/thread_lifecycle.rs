@@ -913,6 +913,18 @@ pub(super) async fn handle_pending_thread_resume_request(
     thread.session_id = session_id;
 
     let response = ThreadResumeResponse {
+        active_model: conversation
+            .active_turn_model()
+            .await
+            .map(
+                |(turn_id, model)| codex_app_server_protocol::ActiveTurnModel {
+                    turn_id,
+                    model: model.model,
+                    effort: model.effort,
+                    sequence: model.sequence,
+                },
+            ),
+        model_routing: collaboration_mode.settings.model_routing,
         thread,
         disabled_plugin_ids,
         model,

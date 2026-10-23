@@ -23,6 +23,7 @@ use codex_experimental_api_macros::ExperimentalApi;
 pub use codex_protocol::capabilities::CapabilityRootLocation;
 pub use codex_protocol::capabilities::SelectedCapabilityRoot;
 use codex_protocol::config_types::CollaborationMode;
+use codex_protocol::config_types::ModelRouting;
 use codex_protocol::config_types::MultiAgentMode;
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::ReasoningSummary;
@@ -188,6 +189,9 @@ pub struct MockExperimentalMethodResponse {
 pub struct ThreadStartResponse {
     pub thread: Thread,
     pub model: String,
+    /// Selection policy for future turns; `model` remains a concrete model.
+    #[serde(default)]
+    pub model_routing: ModelRouting,
     pub model_provider: String,
     pub service_tier: Option<String>,
     /// Saved list of disabled plugin IDs. Does not yet filter plugin capabilities.
@@ -434,8 +438,14 @@ pub struct ThreadResumeParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadResumeResponse {
+    /// Last model actually requested by the live turn, independent of future settings.
+    #[serde(default)]
+    pub active_model: Option<super::ActiveTurnModel>,
     pub thread: Thread,
     pub model: String,
+    /// Selection policy for future turns; `model` remains a concrete model.
+    #[serde(default)]
+    pub model_routing: ModelRouting,
     pub model_provider: String,
     pub service_tier: Option<String>,
     /// Saved list of disabled plugin IDs. Does not yet filter plugin capabilities.
@@ -647,6 +657,9 @@ pub struct ThreadForkParams {
 pub struct ThreadForkResponse {
     pub thread: Thread,
     pub model: String,
+    /// Selection policy for future turns; `model` remains a concrete model.
+    #[serde(default)]
+    pub model_routing: ModelRouting,
     pub model_provider: String,
     pub service_tier: Option<String>,
     /// Saved list of disabled plugin IDs. Does not yet filter plugin capabilities.

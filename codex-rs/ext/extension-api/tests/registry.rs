@@ -243,9 +243,14 @@ async fn build_round_trips_every_contributor_category() {
     assert_eq!(registry.tool_lifecycle_contributors().len(), 1);
     assert_eq!(registry.turn_item_contributors().len(), 1);
     let thread_store = ExtensionData::new("thread");
+    let models: codex_protocol::openai_models::ModelsResponse =
+        serde_json::from_str(include_str!("../../../models-manager/models.json"))
+            .expect("embedded model catalog");
+    let model_info = models.models.first().expect("catalog model");
     let input = codex_extension_api::ApprovalDecisionInput {
         permissions: Some(&Default::default()),
         approval_id: "approval-1",
+        model_info,
         tool_call_id: None,
         action: &serde_json::Value::Null,
         thread_id: codex_protocol::ThreadId::new(),

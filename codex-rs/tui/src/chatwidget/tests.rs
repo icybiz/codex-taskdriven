@@ -226,6 +226,8 @@ fn next_goal_draft(
     }
 }
 
+#[path = "tests/active_model_tests.rs"]
+mod active_model_tests;
 mod app_server;
 mod approval_requests;
 #[path = "tests/backend_banners_tests.rs"]
@@ -301,6 +303,8 @@ mod status_surface_command_tests;
 mod status_surface_previews;
 #[path = "tests/subagent_activity_tests.rs"]
 mod subagent_activity;
+#[path = "tests/taskdriven_tests.rs"]
+mod taskdriven_tests;
 #[path = "tests/terminal_program_status.rs"]
 mod terminal_program_status;
 mod terminal_title;

@@ -128,6 +128,7 @@ async fn submit_turn(test: &TestCodex, permission_profile: PermissionProfile) ->
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

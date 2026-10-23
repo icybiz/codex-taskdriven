@@ -68,31 +68,38 @@ impl GuardianApprovalReviewer {
             return ApprovalDecision::AskUser;
         }
         let config = thread.config().await;
-        let model = input
-            .thread_store
-            .get::<codex_protocol::openai_models::ModelInfo>();
-        let guardian_config = input
+        let model = input.model_info;
+        let base_guardian_config = input
             .thread_store
             .get::<GuardianV2Config>()
             .map(|config| (*config).clone())
-            .map_or_else(|| GuardianV2Config::resolve(&config), Ok)
-            .ok();
-        let mut policy = guardian_config.as_ref().map_or_else(
-            || {
+            .map_or_else(|| GuardianV2Config::resolve(&config), Ok);
+        let guardian_config = base_guardian_config.as_ref().ok().and_then(|config| {
+            config
+                .with_model_defaults(
+                    model
+                        .model_messages
+                        .as_ref()
+                        .and_then(|messages| messages.guardian_v2.as_ref()),
+                )
+                .ok()
+        });
+        // Invalid model-owned runtime defaults cannot make an otherwise required
+        // policy look disabled; use the already-resolved base policy and fail closed.
+        let mut policy = base_guardian_config.as_ref().map_or_else(
+            |_| {
                 codex_config::GuardianPolicyLoader::new(
                     Some(&codex_features::FeatureToml::Enabled(true)),
                     &codex_config::ConfigRequirements::default(),
                 )
-                .resolve(model.as_deref())
+                .resolve(Some(model))
             },
-            |config| config.policy_for_model(model.as_deref()),
+            |config| config.policy_for_model(Some(model)),
         );
-        if let Some(model) = model.as_ref() {
-            config
-                .config_layer_stack
-                .requirements()
-                .constrain_guardian_policy(&mut policy, &model.slug);
-        }
+        config
+            .config_layer_stack
+            .requirements()
+            .constrain_guardian_policy(&mut policy, &model.slug);
         let mode = policy.review_mode(input.category);
         if mode != GuardianReviewMode::Adaptive {
             record_fast_decision(input.metrics.as_deref(), "deferred", "out_of_scope");
@@ -198,6 +205,10 @@ async fn cached_evidence(
         record_fast_decision(metrics, "deferred", "missing_score");
         return Err(GuardianReviewReason::MissingScore);
     };
+    if !progress.matches(input.model_info, config) {
+        record_fast_decision(metrics, "deferred", "model_changed");
+        return Err(GuardianReviewReason::AuthorizationChanged);
+    }
     // Elicitations and intercepted execs can expand beyond the original scored action.
     let action = codex_guardian_context::action_for_review(input.action.clone());
     let max_action_bytes = TruncationPolicy::Tokens(config.max_action_tokens).byte_budget();
@@ -266,7 +277,10 @@ async fn cached_evidence(
         record_fast_decision(metrics, "deferred", "permission_resolution_error");
         return Err(GuardianReviewReason::AuthorizationChanged);
     };
-    let current = ScoreAuthorization::current(thread, permissions).await;
+    let current = ScoreAuthorization {
+        model: Some(std::sync::Arc::new(input.model_info.clone())),
+        ..ScoreAuthorization::current(thread, permissions).await
+    };
     // Classification may publish or fail while authorization is collected.
     let cached = progress.inspect(input.tool_call_id);
     if let Some(metrics) = metrics

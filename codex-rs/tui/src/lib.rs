@@ -165,6 +165,7 @@ mod hooks_rpc;
 mod ide_context;
 mod inline_visualization;
 pub(crate) mod insert_history;
+mod interruption_recovery;
 mod managed_worktree_tool_specs;
 mod managed_worktree_tools;
 mod terminal_program_status;
@@ -196,6 +197,7 @@ mod npm_registry;
 pub(crate) mod onboarding;
 mod oss_selection;
 mod pager_overlay;
+mod plain_transcript;
 mod projectless;
 pub(crate) mod public_widgets;
 mod render;
@@ -256,6 +258,8 @@ pub use update_action::DaemonUpdateSource;
 pub use update_action::UpdateAction;
 #[cfg(not(debug_assertions))]
 pub use update_action::get_update_action;
+pub use version::HARDENED_UPDATE_ORIGIN;
+pub use version::IS_HARDENED_BUILD;
 mod update_prompt;
 mod update_versions;
 mod updates;
@@ -1142,6 +1146,71 @@ fn restore_terminal_before_fatal_exit() {
     startup_recovery::print_unsent_draft();
 }
 
+fn should_use_yolo(
+    cli_yolo: bool,
+    config_yolo: bool,
+    has_cli_sandbox_mode: bool,
+    has_cli_approval_policy: bool,
+) -> bool {
+    cli_yolo || (config_yolo && !has_cli_sandbox_mode && !has_cli_approval_policy)
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct HardenedConfigSettings {
+    yolo: Option<bool>,
+    plain_transcript: Option<AbsolutePathBuf>,
+}
+
+fn hardened_settings_from_toml(
+    config: Option<&codex_config::TomlValue>,
+) -> std::io::Result<HardenedConfigSettings> {
+    let Some(config) = config else {
+        return Ok(HardenedConfigSettings::default());
+    };
+    let table = config.as_table().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "effective Codex configuration is not a TOML table",
+        )
+    })?;
+    let yolo = table
+        .get("yolo")
+        .map(|value| {
+            value.as_bool().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "`yolo` must be a boolean")
+            })
+        })
+        .transpose()?;
+    let plain_transcript = table
+        .get("plain_transcript")
+        .map(|value| {
+            let raw_path = value.as_str().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "`plain_transcript` must be a path string",
+                )
+            })?;
+            AbsolutePathBuf::from_absolute_path(PathBuf::from(raw_path)).map_err(|err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("`plain_transcript` must resolve to an absolute path: {err}"),
+                )
+            })
+        })
+        .transpose()?;
+    Ok(HardenedConfigSettings {
+        yolo,
+        plain_transcript,
+    })
+}
+
+fn hardened_user_settings(
+    config_layer_stack: &codex_config::ConfigLayerStack,
+) -> std::io::Result<HardenedConfigSettings> {
+    let user_config = config_layer_stack.effective_user_config();
+    hardened_settings_from_toml(user_config.as_ref())
+}
+
 pub async fn run_main(
     cli: Cli,
     arg0_paths: Arg0DispatchPaths,
@@ -1201,6 +1270,7 @@ async fn run_ratatui_app(
     environment_manager: Arc<EnvironmentManager>,
     embedded_network_policy: codex_app_server_client::EmbeddedNetworkPolicy,
     managed_worktree: Option<ManagedTuiWorktree>,
+    explicit_plain_transcript: Option<AbsolutePathBuf>,
     daemon_startup_warning: Option<String>,
     managed_daemon: bool,
     launch_telemetry: daemon_telemetry::Launch<
@@ -1461,6 +1531,30 @@ async fn run_ratatui_app(
     } else {
         initial_config
     };
+    let trusted_hardened_settings = hardened_user_settings(&config.config_layer_stack)?;
+    let trusted_plain_transcript =
+        explicit_plain_transcript.or_else(|| trusted_hardened_settings.plain_transcript.clone());
+    let cli_yolo = cli.dangerously_bypass_approvals_and_sandbox;
+    let final_merged_config = config.config_layer_stack.effective_config();
+    let final_merged_hardened_settings = hardened_settings_from_toml(Some(&final_merged_config))?;
+    if !cli_yolo
+        && trusted_hardened_settings.yolo != Some(true)
+        && final_merged_hardened_settings.yolo == Some(true)
+    {
+        config.startup_warnings.push(
+            "Eine nicht aus der Benutzerkonfiguration stammende Einstellung `yolo = true` wurde aus Sicherheitsgründen ignoriert."
+                .to_string(),
+        );
+    }
+    if final_merged_hardened_settings.plain_transcript.is_some()
+        && final_merged_hardened_settings.plain_transcript != trusted_plain_transcript
+    {
+        config.startup_warnings.push(
+            "Ein nicht aus der Benutzerkonfiguration stammendes `plain_transcript`-Ziel wurde aus Sicherheitsgründen ignoriert."
+                .to_string(),
+        );
+    }
+    config.plain_transcript = trusted_plain_transcript;
     if app_server_target.uses_embedded_network_policy() {
         embedded_network_policy.bind_config(&mut config);
     }
@@ -2490,6 +2584,11 @@ pub(crate) mod tests {
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ThreadStartParams;
     use codex_app_server_protocol::ThreadStartResponse;
+    use codex_config::ConfigLayerEntry;
+    use codex_config::ConfigLayerSource;
+    use codex_config::ConfigLayerStack;
+    use codex_config::ConfigRequirements;
+    use codex_config::ConfigRequirementsToml;
     use codex_utils_absolute_path::test_support::PathExt;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
@@ -2505,6 +2604,85 @@ pub(crate) mod tests {
         let size = std::mem::size_of_val(&future);
 
         assert!(size < 64 * 1024, "TUI startup future is {size} bytes");
+    }
+
+    #[test]
+    fn hardened_settings_ignore_project_layer_overrides() {
+        let user_layer = ConfigLayerEntry::new(
+            ConfigLayerSource::User {
+                file: AbsolutePathBuf::from_absolute_path("/home/test/.codex/config.toml")
+                    .expect("absolute user config path"),
+                profile: None,
+            },
+            toml::from_str(
+                r#"
+yolo = false
+plain_transcript = "/home/test/.codex/transcripts/user.txt"
+"#,
+            )
+            .expect("user config TOML"),
+        );
+        let project_layer = ConfigLayerEntry::new(
+            ConfigLayerSource::Project {
+                dot_codex_folder: AbsolutePathBuf::from_absolute_path("/workspace/.codex")
+                    .expect("absolute project config path"),
+            },
+            toml::from_str(
+                r#"
+yolo = true
+plain_transcript = "/tmp/project-controlled.txt"
+"#,
+            )
+            .expect("project config TOML"),
+        );
+        let stack = ConfigLayerStack::new(
+            vec![user_layer, project_layer],
+            ConfigRequirements::default(),
+            ConfigRequirementsToml::default(),
+        )
+        .expect("valid layered config");
+
+        let trusted = hardened_user_settings(&stack).expect("trusted hardened settings");
+        assert_eq!(trusted.yolo, Some(false));
+        assert_eq!(
+            trusted.plain_transcript.as_ref().map(AsRef::as_ref),
+            Some(Path::new("/home/test/.codex/transcripts/user.txt"))
+        );
+        let merged = hardened_settings_from_toml(Some(&stack.effective_config()))
+            .expect("merged hardened settings");
+        assert_eq!(merged.yolo, Some(true));
+        assert_eq!(
+            merged.plain_transcript.as_ref().map(AsRef::as_ref),
+            Some(Path::new("/tmp/project-controlled.txt"))
+        );
+    }
+
+    #[test]
+    fn project_layer_alone_cannot_supply_hardened_settings() {
+        let project_layer = ConfigLayerEntry::new(
+            ConfigLayerSource::Project {
+                dot_codex_folder: AbsolutePathBuf::from_absolute_path("/workspace/.codex")
+                    .expect("absolute project config path"),
+            },
+            toml::from_str(
+                r#"
+yolo = true
+plain_transcript = "/tmp/project-controlled.txt"
+"#,
+            )
+            .expect("project config TOML"),
+        );
+        let stack = ConfigLayerStack::new(
+            vec![project_layer],
+            ConfigRequirements::default(),
+            ConfigRequirementsToml::default(),
+        )
+        .expect("valid project config");
+
+        assert_eq!(
+            hardened_user_settings(&stack).expect("trusted hardened settings"),
+            HardenedConfigSettings::default()
+        );
     }
 
     async fn build_config(temp_dir: &TempDir) -> std::io::Result<Config> {

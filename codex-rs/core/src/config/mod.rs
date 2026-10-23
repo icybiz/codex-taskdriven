@@ -637,6 +637,7 @@ pub struct Config {
 
     /// Optional override of model selection.
     pub model: Option<String>,
+    pub model_routing: codex_protocol::config_types::ModelRouting,
 
     /// Default Daybreak preference for new threads and non-interactive turns.
     pub daybreak_enabled: bool,
@@ -791,6 +792,11 @@ pub struct Config {
     ///
     /// If unset the feature is disabled.
     pub notify: Option<Vec<String>>,
+
+    /// Optional append-only plain-text transcript path for the interactive TUI.
+    /// The TUI replaces the merged value with its separately validated user or
+    /// explicit CLI value before constructing the chat widget.
+    pub plain_transcript: Option<AbsolutePathBuf>,
 
     /// TUI notification settings, including enabled events, delivery method, and focus condition.
     pub tui_notifications: TuiNotificationSettings,
@@ -2702,6 +2708,7 @@ fn resolve_permission_config_syntax(
 #[derive(Default, Debug, Clone)]
 pub struct ConfigOverrides {
     pub model: Option<String>,
+    pub model_routing: Option<codex_protocol::config_types::ModelRouting>,
     pub review_model: Option<String>,
     pub cwd: Option<PathBuf>,
     pub approval_policy: Option<AskForApproval>,
@@ -3439,6 +3446,7 @@ impl Config {
         // Destructure ConfigOverrides fully to ensure all overrides are applied.
         let ConfigOverrides {
             model,
+            model_routing,
             review_model: override_review_model,
             cwd,
             approval_policy: approval_policy_override,
@@ -4120,7 +4128,19 @@ impl Config {
 
         let forced_login_method = cfg.forced_login_method;
 
-        let model = model.or(cfg.model);
+        let model_routing = model_routing.unwrap_or_else(|| {
+            if model.is_some() {
+                codex_protocol::config_types::ModelRouting::Fixed
+            } else {
+                cfg.model_routing.unwrap_or_default()
+            }
+        });
+        let model = if model_routing == codex_protocol::config_types::ModelRouting::TaskDriven {
+            cfg.model_reasoning_effort = Some(ReasoningEffort::XHigh);
+            Some("gpt-5.6-sol".to_string())
+        } else {
+            model.or(cfg.model)
+        };
         let notices = cfg.notice.unwrap_or_default();
         let service_tier = match service_tier_override {
             Some(Some(service_tier)) => Some(service_tier),
@@ -4452,6 +4472,7 @@ impl Config {
             plugins: cfg.plugins,
             prefer_mxc,
             model,
+            model_routing,
             daybreak_enabled: cfg.daybreak.unwrap_or(false),
             service_tier,
             review_model,
@@ -4486,6 +4507,7 @@ impl Config {
             approvals_reviewer: constrained_approvals_reviewer.value(),
             enforce_residency: enforce_residency.value,
             notify: cfg.notify,
+            plain_transcript: cfg.plain_transcript,
             base_instructions,
             base_instructions_provenance,
             personality,
@@ -5179,6 +5201,10 @@ pub fn log_dir(cfg: &Config) -> std::io::Result<PathBuf> {
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "model_routing_tests.rs"]
+mod model_routing_tests;
 
 #[cfg(test)]
 #[path = "config_loader_tests.rs"]

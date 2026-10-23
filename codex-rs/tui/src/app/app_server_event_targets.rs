@@ -139,6 +139,7 @@ pub(super) fn server_notification_thread_target(
         }
         ServerNotification::ContextCompacted(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::ModelRerouted(notification) => Some(notification.thread_id.as_str()),
+        ServerNotification::TurnModelUpdated(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::ModelVerification(notification) => {
             Some(notification.thread_id.as_str())
         }
@@ -274,6 +275,7 @@ mod tests {
             collaboration_mode: CollaborationMode {
                 mode: ModeKind::Default,
                 settings: Settings {
+                    model_routing: Default::default(),
                     model: "gpt-5.4".to_string(),
                     reasoning_effort: Some(ReasoningEffort::High),
                     developer_instructions: None,

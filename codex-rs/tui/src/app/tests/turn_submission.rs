@@ -131,6 +131,7 @@ async fn turn_start_failure_is_shown_without_exiting() -> Result<()> {
         .await?;
 
     assert!(matches!(control, AppRunControl::Continue));
+    pretty_assertions::assert_eq!(app.chat_widget.composer_text_with_pending(), "hello");
     let error_cell = std::iter::from_fn(|| app_event_rx.try_recv().ok())
         .find_map(|event| match event {
             AppEvent::InsertHistoryCell(cell) => Some(cell),
@@ -146,10 +147,11 @@ async fn turn_start_failure_is_shown_without_exiting() -> Result<()> {
         )))
         .collect::<Vec<_>>()
         .join("\n");
-    insta::assert_snapshot!(transcript, @r"
+    insta::assert_snapshot!(transcript, @"
+
     › hello
 
-    ■ Failed to start turn: turn/start failed in TUI: turn/start failed: thread not found: 123e4567-e89b-12d3-a456-426614174000 (code -32600)
+    ■ Unable to start the turn; the TUI session is still alive and the submitted draft was restored. Delivery may be ambiguous, so inspect the thread before submitting the draft again to avoid a duplicate turn. turn/start failed in TUI: turn/start failed: thread not found: 123e4567-e89b-12d3-a456-426614174000 (code -32600)
     ");
 
     app_server.shutdown().await?;
@@ -432,7 +434,7 @@ async fn unsupported_legacy_permissions_are_shown_without_exiting() -> Result<()
         .expect("unsupported permissions should be added to history");
     insta::assert_snapshot!(
         lines_to_single_string(&error_cell.display_lines(/*width*/ 200)),
-        @"■ Failed to start turn: the selected permission profile cannot be safely represented by the legacy app-server sandbox policy; select a named or legacy-compatible permission profile"
+        @"■ Unable to start the turn; the TUI session is still alive and the submitted draft was restored. Delivery may be ambiguous, so inspect the thread before submitting the draft again to avoid a duplicate turn. the selected permission profile cannot be safely represented by the legacy app-server sandbox policy; select a named or legacy-compatible permission profile"
     );
 
     app.handle_event(

@@ -455,6 +455,14 @@ impl ChatWidget {
             }
         }
         let parsed = parse_assistant_markdown(&message, self.config.cwd.as_path());
+        if !from_replay && !parsed.visible_markdown.is_empty() {
+            let role = match &item.phase {
+                Some(MessagePhase::Commentary) => PlainTranscriptRole::CodexCommentary,
+                Some(MessagePhase::FinalAnswer) => PlainTranscriptRole::CodexFinal,
+                None => PlainTranscriptRole::Codex,
+            };
+            self.record_plain_transcript_entry(role, &parsed.visible_markdown);
+        }
         if from_replay
             && self.stream_controller.is_none()
             && !parsed.visible_markdown.is_empty()

@@ -30,6 +30,7 @@ use crate::tools::handlers::TestSyncHandler;
 use crate::tools::handlers::ToolSearchHandlerCache;
 use crate::tools::handlers::ViewImageHandler;
 use crate::tools::handlers::WaitForEnvironmentHandler;
+use crate::tools::handlers::WorkPhaseHandler;
 use crate::tools::handlers::WriteStdinHandler;
 use crate::tools::handlers::extension_tools::ExtensionToolAdapter;
 use crate::tools::handlers::multi_agents::CloseAgentHandler;
@@ -108,6 +109,7 @@ struct CoreToolPlanContext<'a> {
     tool_policy: &'a codex_extension_api::ToolPolicy,
     turn_context: &'a TurnContext,
     model_info: &'a ModelInfo,
+    model_routing: codex_protocol::config_types::ModelRouting,
     environments: &'a TurnEnvironmentSnapshot,
     mcp: &'a codex_mcp::McpBinding,
     tool_suggest_candidates: Option<&'a crate::tools::router::ToolSuggestCandidates>,
@@ -122,6 +124,7 @@ pub(crate) fn build_tool_router(
     session: &Session,
     turn_context: &TurnContext,
     model_info: &ModelInfo,
+    model_routing: codex_protocol::config_types::ModelRouting,
     environments: &TurnEnvironmentSnapshot,
     mcp: &Arc<codex_mcp::McpBinding>,
     apps_enabled: bool,
@@ -138,6 +141,7 @@ pub(crate) fn build_tool_router(
         tool_policy: &session.tool_policy,
         turn_context,
         model_info,
+        model_routing,
         environments,
         mcp,
         tool_suggest_candidates,
@@ -305,6 +309,11 @@ pub(crate) fn build_core_tool_registry(
         tool_policy: &Default::default(),
         turn_context,
         model_info,
+        model_routing: turn_context
+            .next_step_settings_for_test()
+            .selected_collaboration_mode()
+            .settings
+            .model_routing,
         environments,
         mcp,
         tool_suggest_candidates,
@@ -1360,6 +1369,36 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
     if features.enabled(Feature::TokenBudget) {
         registry.add_with_exposure(NewContextWindowHandler, ToolExposure::DirectModelOnly);
         registry.add(GetContextRemainingHandler);
+    }
+
+    let taskdriven_enabled = codex_taskdriven::instructions_are_enabled(
+        turn_context
+            .collaboration_mode()
+            .settings
+            .developer_instructions
+            .as_deref(),
+    ) || codex_taskdriven::instructions_are_enabled(
+        turn_context.developer_instructions.as_deref(),
+    );
+    if taskdriven_enabled
+        && features.enabled(Feature::AutonomousWorkPhase)
+        && features.enabled(Feature::StepModelSwitching)
+        && context.model_routing == codex_protocol::config_types::ModelRouting::TaskDriven
+        && !crate::guardian::is_basic_session_source(&turn_context.session_source)
+    {
+        let taskdriven_models = turn_context
+            .available_models
+            .iter()
+            .map(codex_taskdriven::TaskDrivenModel::from_preset)
+            .collect::<Vec<_>>();
+        if let Ok(document) = codex_taskdriven::TaskDrivenConfigDocument::load(
+            turn_context.config.codex_home.as_path(),
+        ) && document.enabled()
+            && let Ok(config) = document.materialize(&taskdriven_models)
+        {
+            registry
+                .add_with_exposure(WorkPhaseHandler::new(config), ToolExposure::DirectModelOnly);
+        }
     }
 
     let current_time_reminder_enabled = features.enabled(Feature::CurrentTimeReminder);

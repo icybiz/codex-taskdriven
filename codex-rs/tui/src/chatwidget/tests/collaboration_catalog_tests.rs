@@ -12,6 +12,7 @@ async fn collaboration_catalog_selection_clears_restored_prompt_and_survives_mod
             model: "gpt-5.2".into(),
             reasoning_effort: Some(ReasoningEffortConfig::Low),
             developer_instructions: Some("stale restored prompt".into()),
+            model_routing: Default::default(),
         },
     };
     chat.set_effective_collaboration_mode(restored.clone());
@@ -41,6 +42,7 @@ async fn collaboration_catalog_selection_clears_restored_prompt_and_survives_mod
                 model: "gpt-5.2".into(),
                 reasoning_effort: Some(ReasoningEffortConfig::High),
                 developer_instructions: None,
+                model_routing: Default::default(),
             },
         }
     );
@@ -70,6 +72,7 @@ async fn collaboration_catalog_unavailable_preserves_task_and_plan_input() {
                 model: "task-model".into(),
                 reasoning_effort: Some(ReasoningEffortConfig::Ultra),
                 developer_instructions: Some("restored prompt".into()),
+                model_routing: Default::default(),
             },
         };
         chat.set_effective_collaboration_mode(restored.clone());
@@ -82,6 +85,7 @@ async fn collaboration_catalog_unavailable_preserves_task_and_plan_input() {
             model: "task-model".into(),
             reasoning_effort: Some(ReasoningEffortConfig::Low),
             developer_instructions: None,
+            model_routing: Default::default(),
         },
     });
     chat.thread_id = Some(ThreadId::new());

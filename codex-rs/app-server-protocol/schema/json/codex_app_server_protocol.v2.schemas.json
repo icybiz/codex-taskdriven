@@ -233,6 +233,39 @@
       ],
       "type": "object"
     },
+    "ActiveTurnModel": {
+      "description": "Most recent inference request in the live turn of a resumed thread.",
+      "properties": {
+        "effort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReasoningEffort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "sequence": {
+          "description": "Monotonic model-state sequence shared with live model notifications.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "sequence",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "AddCreditsNudgeCreditType": {
       "enum": [
         "credits",
@@ -11964,6 +11997,12 @@
         "reason": {
           "$ref": "#/definitions/ModelRerouteReason"
         },
+        "sequence": {
+          "description": "Monotonic model-state sequence within this turn; zero is a legacy event.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
         "threadId": {
           "type": "string"
         },
@@ -11983,6 +12022,14 @@
       ],
       "title": "ModelReroutedNotification",
       "type": "object"
+    },
+    "ModelRouting": {
+      "description": "Only TaskDriven enables automatic work-phase transitions. Older settings without a routing policy retain ordinary fixed-model behavior.",
+      "enum": [
+        "fixed",
+        "taskDriven"
+      ],
+      "type": "string"
     },
     "ModelSafetyBufferingUpdatedNotification": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -17652,6 +17699,26 @@
           "properties": {
             "method": {
               "enum": [
+                "turn/model/updated"
+              ],
+              "title": "Turn/model/updatedNotificationMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/TurnModelUpdatedNotification"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "title": "Turn/model/updatedNotification",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "enum": [
                 "model/verification"
               ],
               "title": "Model/verificationNotificationMethod",
@@ -18248,6 +18315,15 @@
         },
         "model": {
           "type": "string"
+        },
+        "modelRouting": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ModelRouting"
+            }
+          ],
+          "default": "fixed",
+          "description": "Automatic routing is explicitly selected independently of the real model."
         },
         "reasoning_effort": {
           "anyOf": [
@@ -19684,6 +19760,15 @@
         },
         "modelProvider": {
           "type": "string"
+        },
+        "modelRouting": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ModelRouting"
+            }
+          ],
+          "default": "fixed",
+          "description": "Selection policy for future turns; `model` remains a concrete model."
         },
         "reasoningEffort": {
           "anyOf": [
@@ -22199,6 +22284,18 @@
     "ThreadResumeResponse": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
+        "activeModel": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ActiveTurnModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Last model actually requested by the live turn, independent of future settings."
+        },
         "approvalPolicy": {
           "$ref": "#/definitions/AskForApproval"
         },
@@ -22253,6 +22350,15 @@
         },
         "modelProvider": {
           "type": "string"
+        },
+        "modelRouting": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ModelRouting"
+            }
+          ],
+          "default": "fixed",
+          "description": "Selection policy for future turns; `model` remains a concrete model."
         },
         "reasoningEffort": {
           "anyOf": [
@@ -22976,6 +23082,15 @@
         },
         "modelProvider": {
           "type": "string"
+        },
+        "modelRouting": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ModelRouting"
+            }
+          ],
+          "default": "fixed",
+          "description": "Selection policy for future turns; `model` remains a concrete model."
         },
         "reasoningEffort": {
           "anyOf": [
@@ -23957,6 +24072,44 @@
           "type": "string"
         }
       ]
+    },
+    "TurnModelUpdatedNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "description": "Captured inference settings, emitted before response output. Repeated requests may report the same settings. Persistent thread defaults are unchanged.",
+      "properties": {
+        "effort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReasoningEffort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "sequence": {
+          "description": "Monotonic model-state sequence within this turn; zero is a legacy event.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "threadId",
+        "turnId"
+      ],
+      "title": "TurnModelUpdatedNotification",
+      "type": "object"
     },
     "TurnModerationMetadataNotification": {
       "$schema": "http://json-schema.org/draft-07/schema#",

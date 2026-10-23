@@ -204,6 +204,7 @@ fn collaboration_mode(mode: ModeKind, instructions: Option<&str>) -> Collaborati
     CollaborationMode {
         mode,
         settings: Settings {
+            model_routing: Default::default(),
             model: "test-model".to_string(),
             reasoning_effort: None,
             developer_instructions: instructions.map(str::to_string),

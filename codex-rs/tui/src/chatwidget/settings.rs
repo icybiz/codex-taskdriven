@@ -5,6 +5,14 @@ use crate::app_event::AppEvent;
 use crate::chatwidget::rate_limits::RATE_LIMIT_SWITCH_PROMPT_VIEW_ID;
 
 impl ChatWidget {
+    /// Set the personality in the widget's config copy.
+    pub(crate) fn set_personality(
+        &mut self,
+        personality: codex_protocol::config_types::Personality,
+    ) {
+        self.config.personality = Some(personality);
+    }
+
     pub(crate) fn set_daybreak_enabled(&mut self, enabled: bool) {
         self.daybreak_enabled = enabled && self.daybreak_feature_enabled();
         self.bottom_pane
@@ -188,6 +196,10 @@ impl ChatWidget {
     /// Does not touch the active Plan mask — Plan reasoning is controlled
     /// exclusively by the Plan preset and `set_plan_mode_reasoning_effort`.
     pub(crate) fn set_reasoning_effort(&mut self, effort: Option<ReasoningEffortConfig>) {
+        self.current_collaboration_mode.settings.model_routing =
+            codex_protocol::config_types::ModelRouting::Fixed;
+        self.config.model_routing = codex_protocol::config_types::ModelRouting::Fixed;
+        self.clear_idle_model_display();
         self.current_collaboration_mode = self.current_collaboration_mode.with_updates(
             /*model*/ None,
             Some(effort.clone()),
@@ -305,6 +317,8 @@ impl ChatWidget {
                     backend_banners::AutomaticModelSwitchState::default();
             }
         }
+        self.config.model_routing = codex_protocol::config_types::ModelRouting::Fixed;
+        self.clear_idle_model_display();
         self.current_collaboration_mode = self.current_collaboration_mode.with_updates(
             Some(model.to_string()),
             /*effort*/ None,
@@ -320,7 +334,7 @@ impl ChatWidget {
     }
 
     pub(crate) fn current_model(&self) -> &str {
-        if !self.collaboration_modes_enabled() {
+        if self.taskdriven_selected() || !self.collaboration_modes_enabled() {
             return self.current_collaboration_mode.model();
         }
         self.active_collaboration_mask
@@ -443,7 +457,7 @@ impl ChatWidget {
     }
 
     pub(super) fn effective_reasoning_effort(&self) -> Option<ReasoningEffortConfig> {
-        if !self.collaboration_modes_enabled() {
+        if self.taskdriven_selected() || !self.collaboration_modes_enabled() {
             return self.current_collaboration_mode.reasoning_effort();
         }
         let current_effort = self.current_collaboration_mode.reasoning_effort();
@@ -467,12 +481,13 @@ impl ChatWidget {
         let effective = self.effective_collaboration_mode();
         self.bottom_pane
             .stop_ineligible_sparkle(effective.model(), &self.local_settings.tui);
-        self.session_header.set_model(effective.model());
+        let displayed_model = self.model_display_name().to_string();
+        self.session_header.set_model(&displayed_model);
         // Keep composer paste affordances aligned with the currently effective model.
         self.sync_image_paste_enabled();
         self.sync_service_tier_commands();
         self.refresh_terminal_title();
-        let effort = self.effective_reasoning_effort();
+        let effort = self.displayed_reasoning_effort();
         self.bottom_pane
             .set_active_reasoning_effort(effort.as_ref());
     }
@@ -494,6 +509,13 @@ impl ChatWidget {
 
     fn apply_thread_settings(&mut self, mut settings: ThreadSettings) {
         self.invalidate_permission_discovery();
+        if settings.model != self.current_model()
+            || settings.effort != self.effective_reasoning_effort()
+            || settings.collaboration_mode.settings.model_routing
+                != self.current_collaboration_mode.settings.model_routing
+        {
+            self.clear_idle_model_display();
+        }
         let cwd_changed = self.config.cwd != settings.cwd;
         self.apply_thread_settings_cwd(settings.cwd.clone());
         self.config.model_provider_id = settings.model_provider.clone();
@@ -587,6 +609,13 @@ impl ChatWidget {
     pub(crate) fn set_effective_collaboration_mode(&mut self, mode: CollaborationMode) {
         let mode_kind = mode.mode;
         let settings = mode.settings;
+        self.config.model_routing = settings.model_routing;
+        self.current_collaboration_mode.settings.model_routing = settings.model_routing;
+        if settings.model_routing == codex_protocol::config_types::ModelRouting::TaskDriven {
+            self.current_collaboration_mode.settings.model = settings.model.clone();
+            self.current_collaboration_mode.settings.reasoning_effort =
+                settings.reasoning_effort.clone();
+        }
         if mode_kind == ModeKind::Default {
             self.current_collaboration_mode = CollaborationMode {
                 mode: ModeKind::Default,
@@ -605,7 +634,11 @@ impl ChatWidget {
     }
 
     pub(crate) fn model_display_name(&self) -> &str {
-        let model = self.current_model();
+        let model = self
+            .turn_lifecycle
+            .active_model
+            .as_ref()
+            .map_or_else(|| self.current_model(), |active| active.model.as_str());
         if model.is_empty() {
             DEFAULT_MODEL_DISPLAY_NAME
         } else {
@@ -711,6 +744,7 @@ impl ChatWidget {
     /// When collaboration modes are enabled and a preset is selected,
     /// the current mode is attached to submissions as `Op::UserTurn { collaboration_mode: Some(...) }`.
     pub(crate) fn set_collaboration_mask(&mut self, mut mask: CollaborationModeMask) {
+        self.clear_idle_model_display();
         if !self.collaboration_modes_enabled() {
             return;
         }

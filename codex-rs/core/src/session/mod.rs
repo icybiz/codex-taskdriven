@@ -240,6 +240,7 @@ use codex_protocol::error::Result as CodexResult;
 #[cfg(test)]
 use codex_protocol::exec_output::StreamOutput;
 
+mod active_model;
 pub(crate) mod async_compaction;
 mod code_mode_warning;
 mod config_refresh;
@@ -271,6 +272,7 @@ mod rollout_reconstruction;
 pub(crate) mod session;
 pub(crate) mod startup_prewarm;
 mod step_activation;
+pub(crate) use step_activation::step_settings_are_current;
 pub(crate) mod step_context;
 pub(crate) mod step_settings;
 mod thread_settings;
@@ -895,17 +897,24 @@ impl Session {
         let collaboration_mode = CollaborationMode {
             mode: ModeKind::Default,
             settings: Settings {
+                model_routing: if matches!(&session_source, SessionSource::SubAgent(_)) {
+                    codex_protocol::config_types::ModelRouting::Fixed
+                } else {
+                    config.model_routing
+                },
                 model: model.clone(),
                 reasoning_effort: config.model_reasoning_effort.clone(),
                 developer_instructions: None,
             },
         };
         let collaboration_mode = persisted_collaboration_mode.map_or(collaboration_mode, |saved| {
-            saved.with_updates(
+            let mut restored = saved.with_updates(
                 Some(model.clone()),
                 Some(config.model_reasoning_effort.clone()),
                 /*developer_instructions*/ None,
-            )
+            );
+            restored.settings.model_routing = saved.settings.model_routing;
+            restored
         });
         let initial_service_tier_warning = unsupported_service_tier_warning(
             config.service_tier.as_deref(),
@@ -4083,6 +4092,10 @@ impl Session {
                 self.as_ref(),
                 turn_context.as_ref(),
                 &settings.model_info,
+                settings
+                    .selected_collaboration_mode()
+                    .settings
+                    .model_routing,
                 &environments,
                 &mcp,
                 &extension_data,
@@ -4227,9 +4240,21 @@ impl Session {
             "Your account was flagged for potentially high-risk cyber activity and this request was routed to gpt-5.2 as a fallback. To regain access to gpt-5.3-codex, apply for trusted access: {CYBER_VERIFY_URL} or learn more: {CYBER_SAFETY_URL}"
         );
 
+        let sequence = if self.features.enabled(Feature::StepModelSwitching) {
+            self.record_model_request(
+                turn_context,
+                server_model.clone(),
+                step_context.settings.effective_reasoning_effort(),
+            )
+            .await
+            .sequence
+        } else {
+            0
+        };
         self.send_event(
             turn_context,
             EventMsg::ModelReroute(ModelRerouteEvent {
+                sequence,
                 from_model: requested_model.clone(),
                 to_model: server_model.clone(),
                 reason: ModelRerouteReason::HighRiskCyberActivity,

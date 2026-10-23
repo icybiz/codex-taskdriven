@@ -4,6 +4,7 @@ use super::environment::ensure_configs_stay_owner_provided;
 use super::environment::validate_environment_configs;
 use super::session::Session;
 use super::session::SessionConfiguration;
+use super::step_context::StepContext;
 use super::step_settings::ResolvedStepSettings;
 use super::step_settings::StepSettingsConstraints;
 use super::step_settings::StepSettingsUpdate;
@@ -14,8 +15,6 @@ use crate::environment_selection::validate_environment_ids_and_cwds;
 use crate::exec_policy::AllowPrefixRules;
 use codex_features::Feature;
 use codex_prompts::ResolvedModelMessages;
-use codex_protocol::openai_models::GuardianV2ModelConfig;
-use codex_protocol::openai_models::GuardianV2TranscriptModelConfig;
 use codex_protocol::openai_models::MODEL_SPECIALTY_CYBER;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::protocol::EnvironmentConfigState;
@@ -23,6 +22,12 @@ use codex_protocol::protocol::TurnEnvironmentSelection;
 use codex_protocol::protocol::TurnSettingsUpdate;
 use codex_protocol::protocol::TurnSettingsUpdateOutcome;
 use std::sync::Arc;
+
+/// Reject a later tool call from a response whose settings were already replaced.
+/// Tools that started before publication keep their captured step context.
+pub(crate) fn step_settings_are_current(step: &StepContext) -> bool {
+    Arc::ptr_eq(&step.settings, &step.turn.next_step_settings.load_full())
+}
 
 /// Temporary restrictions while approvals and Guardian still read the admitted
 /// `TurnContext`. Ordinary live authorization is validated separately. Remove
@@ -83,8 +88,8 @@ fn check_legacy_turn_safety(
     )
 }
 
-/// Model-owned portion of the temporary legacy-turn safety check. Ordinary
-/// model metadata may differ so diagnostics can expose unmigrated consumers.
+/// Conservative restrictions outside the verified Sol/Astra review paths.
+/// Review requirements and Guardian V2 defaults are captured per invocation.
 fn check_legacy_model_safety(
     admitted: &ModelInfo,
     current: &ModelInfo,
@@ -108,21 +113,7 @@ fn check_legacy_model_safety(
     }) {
         return Err("the destination changes the admitted Guardian rejection policy".to_string());
     }
-    // TurnMetadataState pins both node REPL flags. Guardian prompt/evidence
-    // construction also reads node_repl_auto_review_required from the turn.
-    if retained_models.iter().any(|model| {
-        model.computer_use_review_required() != destination.computer_use_review_required()
-    }) {
-        return Err(
-            "the destination changes the admitted node REPL review requirement".to_string(),
-        );
-    }
-    if retained_models
-        .iter()
-        .any(|model| model.guardian != destination.guardian)
-    {
-        return Err("the destination changes the admitted Guardian coverage".to_string());
-    }
+    // Tool availability still includes the admitted turn configuration.
     if retained_models
         .iter()
         .any(|model| model.node_repl_disabled != destination.node_repl_disabled)
@@ -131,47 +122,12 @@ fn check_legacy_model_safety(
             "the destination changes the admitted node REPL availability restriction".to_string(),
         );
     }
-    // guardian::review::guardian_review_session_config and Guardian V2 still
-    // select the reviewer from the retained parent metadata.
+    // Explicit reviewer changes are outside the verified switching scope.
     if retained_models
         .iter()
         .any(|model| model.auto_review_model_override != destination.auto_review_model_override)
     {
         return Err("the destination changes the explicit Guardian reviewer model".to_string());
-    }
-
-    if (admitted_config.features.enabled(Feature::GuardianV2) || destination.guardian.is_some())
-        && admitted_config.features.enabled(Feature::GuardianApproval)
-    {
-        // GuardianV2Extension::on_tool_start reads the parent ModelInfo from
-        // thread_store. Its classifier settings are independent of the reviewer
-        // override. Local overrides may mask differences, but resolving those
-        // overrides remains the extension's responsibility.
-        let classification_settings =
-            |model: &ModelInfo| -> GuardianV2ModelConfig {
-                let mut settings = model
-                    .model_messages
-                    .as_ref()
-                    .and_then(|messages| messages.guardian_v2.clone())
-                    .unwrap_or_default();
-                // Missing and empty transcript records supply the same defaults.
-                if settings.transcript.as_ref().is_some_and(|transcript| {
-                    *transcript == GuardianV2TranscriptModelConfig::default()
-                }) {
-                    settings.transcript = None;
-                }
-                settings
-            };
-        let destination_settings = classification_settings(destination);
-        if retained_models
-            .iter()
-            .any(|model| classification_settings(model) != destination_settings)
-        {
-            return Err(
-                "the destination changes the admitted Guardian V2 classification settings"
-                    .to_string(),
-            );
-        }
     }
 
     // guardian_review_session_config and Guardian V2 can fall back to parent
@@ -216,6 +172,24 @@ fn check_legacy_model_safety(
 }
 
 impl Session {
+    pub(crate) async fn apply_taskdriven_settings(
+        &self,
+        step: &StepContext,
+        update: TurnSettingsUpdate,
+    ) -> TurnSettingsUpdateOutcome {
+        self.apply_turn_settings_from(&step.turn.sub_id, update, Some(&step.settings))
+            .await
+    }
+
+    pub(crate) async fn apply_turn_settings(
+        &self,
+        turn_id: &str,
+        update: TurnSettingsUpdate,
+    ) -> TurnSettingsUpdateOutcome {
+        self.apply_turn_settings_from(turn_id, update, /*expected*/ None)
+            .await
+    }
+
     /// Publishes settings to the named, originally captured live task, regardless
     /// of task kind. Publication does not propagate to child sessions or require
     /// the task to sample; consumers using initial settings remain unchanged.
@@ -226,10 +200,11 @@ impl Session {
         clippy::await_holding_invalid_type,
         reason = "the final managed-policy check and active settings publication must remain atomic"
     )]
-    pub(super) async fn apply_turn_settings(
+    async fn apply_turn_settings_from(
         &self,
         turn_id: &str,
         update: TurnSettingsUpdate,
+        expected: Option<&Arc<ResolvedStepSettings>>,
     ) -> TurnSettingsUpdateOutcome {
         let updates_model_settings = update.model.is_some()
             || update.effort.is_some()
@@ -250,12 +225,13 @@ impl Session {
             let active = self.active_turn.lock().await;
             active.as_ref().and_then(|active| {
                 active.task.as_ref().and_then(|task| {
+                    let current = task.turn_context.next_step_settings.load_full();
                     (task.turn_context.sub_id == turn_id && !task.cancellation_token.is_cancelled())
                         .then(|| {
                             (
                                 Arc::clone(&task.turn_context),
                                 Arc::clone(&task.done),
-                                task.turn_context.next_step_settings.load_full(),
+                                current,
                             )
                         })
                 })
@@ -264,7 +240,11 @@ impl Session {
         let Some((turn_context, task_done, current)) = target else {
             return TurnSettingsUpdateOutcome::TargetUnavailable;
         };
+        if expected.is_some_and(|expected| !Arc::ptr_eq(expected, &current)) {
+            return TurnSettingsUpdateOutcome::TargetUnavailable;
+        }
         let TurnSettingsUpdate {
+            model_routing,
             approvals_reviewer,
             environments: environment_requests,
             model,
@@ -282,6 +262,7 @@ impl Session {
         });
         let updates_step_settings = updates_model_settings || approvals_reviewer.is_some();
         let update = StepSettingsUpdate {
+            model_routing,
             approvals_reviewer,
             model,
             effort,
@@ -316,6 +297,7 @@ impl Session {
         // abandons the update without retrying or applying it to the replacement.
         if !Arc::ptr_eq(&task.done, &task_done)
             || !Arc::ptr_eq(&task.turn_context, &turn_context)
+            || !Arc::ptr_eq(&task.turn_context.next_step_settings.load_full(), &current)
             || task.cancellation_token.is_cancelled()
         {
             return TurnSettingsUpdateOutcome::TargetUnavailable;

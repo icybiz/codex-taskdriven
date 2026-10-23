@@ -176,5 +176,6 @@ mod web_search;
 mod windows_sandbox_setup;
 mod workspace_routing;
 
+mod active_model_resume;
 mod user_verification;
 mod user_verification_mcp;

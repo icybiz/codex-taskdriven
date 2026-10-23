@@ -893,6 +893,12 @@ fn run_update_command() -> anyhow::Result<()> {
 
     #[cfg(not(debug_assertions))]
     {
+        if codex_tui::IS_HARDENED_BUILD {
+            anyhow::bail!(
+                "This hardened Codex must be rebuilt and deployed centrally from {}; self-update is disabled.",
+                codex_tui::HARDENED_UPDATE_ORIGIN
+            );
+        }
         let Some(action) = codex_tui::get_update_action() else {
             anyhow::bail!(
                 "Could not detect the Codex installation method. Please update manually: https://developers.openai.com/codex/cli/"

@@ -46,6 +46,9 @@ pub enum TurnStatus {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export_to = "v2/")]
 pub struct TurnSettingsUpdateParams {
+    /// Select fixed-model behavior or autonomous work-phase routing for this turn.
+    #[ts(optional = nullable)]
+    pub model_routing: Option<codex_protocol::config_types::ModelRouting>,
     pub thread_id: String,
     pub turn_id: String,
     /// Changes the active turn's reviewer without changing future thread settings.

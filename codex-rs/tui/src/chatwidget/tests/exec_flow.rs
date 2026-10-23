@@ -590,8 +590,10 @@ async fn exec_end_without_begin_does_not_flush_unrelated_running_exploring_cell(
         "expected orphan end to render a standalone entry: {orphan_blob:?}"
     );
     let active = active_blob(&chat);
+    // The active status indicator intentionally blinks between solid and
+    // hollow bullets, so either frame proves that the cell is still active.
     assert!(
-        active.contains("• Exploring"),
+        active.contains("• Exploring") || active.contains("◦ Exploring"),
         "expected unrelated exploring call to remain active: {active:?}"
     );
     assert!(
@@ -668,7 +670,7 @@ async fn overlapping_exploring_exec_end_is_not_misclassified_as_orphan() {
         "expected second running command to stay in the same active cell: {active:?}"
     );
     assert!(
-        active.contains("• Exploring"),
+        active.contains("• Exploring") || active.contains("◦ Exploring"),
         "expected grouped exploring header to remain active: {active:?}"
     );
 
@@ -1217,6 +1219,9 @@ async fn bang_shell_enter_while_task_running_submits_run_user_shell_command() {
     let thread_id = ThreadId::new();
     let rollout_file = NamedTempFile::new().unwrap();
     let configured = crate::session_state::ThreadSessionState {
+        active_model: None,
+        model_routing: Default::default(),
+        personality: None,
         daybreak_enabled: false,
         windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
         thread_id,

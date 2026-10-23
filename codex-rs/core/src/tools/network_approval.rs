@@ -4,7 +4,6 @@ use crate::guardian::GuardianNetworkAccessTrigger;
 use crate::guardian::GuardianReviewContext;
 use crate::network_policy_decision::denied_network_policy_message;
 use crate::session::session::Session;
-use crate::session::turn_context::TurnContext;
 use crate::session::turn_context::TurnEnvironment;
 use crate::tools::approvals::ApprovalAction;
 use crate::tools::approvals::ApprovalContext;
@@ -735,6 +734,16 @@ impl NetworkApprovalService {
             &settings,
             review_environments,
         );
+        if owner_call.is_none()
+            && turn_context
+                .config
+                .features
+                .enabled(codex_features::Feature::StepModelSwitching)
+        {
+            // Unattributed traffic cannot borrow another model's review policy.
+            pending_owner.complete(PendingApprovalDecision::Deny);
+            return NetworkDecision::deny(REASON_NOT_ALLOWED);
+        }
         if !allows_network_approval_flow(review_context.approval_policy) {
             if let Some(owner_call) = owner_call.as_ref() {
                 self.record_call_outcome(&owner_call.registration_id, policy_denial_message);
@@ -1094,11 +1103,11 @@ pub(crate) fn build_network_policy_decider(
 
 pub(crate) async fn begin_network_approval(
     session: &Arc<Session>,
-    turn: &TurnContext,
-    environments: &TurnEnvironmentSnapshot,
+    step: &Arc<crate::session::step_context::StepContext>,
     managed_network_active: bool,
     spec: Option<NetworkApprovalSpec>,
 ) -> Result<Option<ActiveNetworkApproval>, ToolError> {
+    let turn = &step.turn;
     let NetworkApprovalSpec {
         network,
         trigger,
@@ -1116,7 +1125,8 @@ pub(crate) async fn begin_network_approval(
     }
 
     let controller = turn.config.permissions.network.as_ref();
-    let environment = environments
+    let environment = step
+        .environments
         .turn_environments()
         .find(|environment| environment.selection.environment_id == environment_id);
     let owner_spec = network_policy
@@ -1227,7 +1237,7 @@ pub(crate) async fn begin_network_approval(
             command,
             environment_id,
             permission_profile,
-            environments: environments.clone(),
+            environments: step.environments.clone(),
             cancellation_token: cancellation_token.clone(),
         })
         .await;

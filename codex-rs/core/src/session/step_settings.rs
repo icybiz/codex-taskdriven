@@ -41,7 +41,7 @@ pub(crate) struct StepSettings {
 pub(crate) struct ResolvedStepSettings {
     /// Inputs for later sparse patches. Unset defaults and unsupported requested
     /// tiers must not be reconstructed from the effective values below.
-    selected: Arc<StepSettings>,
+    pub(super) selected: Arc<StepSettings>,
     pub(crate) model_info: Arc<ModelInfo>,
     /// Effective request summary: the configured value or the pinned model's default.
     pub(crate) reasoning_summary: ReasoningSummary,
@@ -106,7 +106,7 @@ impl ResolvedStepSettings {
         &self.selected
     }
 
-    pub(super) fn selected_collaboration_mode(&self) -> &CollaborationMode {
+    pub(crate) fn selected_collaboration_mode(&self) -> &CollaborationMode {
         &self.selected.collaboration_mode
     }
 
@@ -215,6 +215,7 @@ impl ModelInfoOverrides {
 /// that full value for another. Merge the requested edits with each target.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StepSettingsUpdate {
+    pub(crate) model_routing: Option<codex_protocol::config_types::ModelRouting>,
     pub(crate) model: Option<String>,
     pub(crate) effort: Option<Option<ReasoningEffort>>,
     /// A complete collaboration mode takes precedence over model and effort edits.
@@ -263,6 +264,9 @@ impl StepSettings {
                 /*developer_instructions*/ None,
             )
         });
+        if let Some(model_routing) = update.model_routing {
+            next.collaboration_mode.settings.model_routing = model_routing;
+        }
         if let Some(summary) = update.reasoning_summary {
             next.reasoning_summary = Some(summary);
         }

@@ -19,7 +19,6 @@ use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::mcp::is_node_repl_backed_connector;
 use codex_protocol::openai_models::GuardianReviewMode;
 use codex_protocol::openai_models::GuardianScope;
-use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::turn_input::CyberAccessProgram;
 
 use super::action::ActionRenderError;
@@ -59,13 +58,41 @@ impl GuardianV2Extension {
         let Some(sampler) = input.thread_store.get::<LunaSampler>() else {
             return;
         };
-        let Some(guardian_config) = input.thread_store.get::<GuardianV2Config>() else {
+        let Some(base_guardian_config) = input.thread_store.get::<GuardianV2Config>() else {
             return;
         };
         let Some(score_progress) = input.thread_store.get::<GuardianV2ScoreProgress>() else {
             return;
         };
-        let parent_model = input.thread_store.get::<ModelInfo>();
+        let parent_model = Some(Arc::new(input.model_info.clone()));
+        let metrics = score_progress.metrics.clone();
+        let context_mode = GuardianContextMode::from_history(input.conversation_history.as_ref());
+        let sampled_at = SystemTime::now();
+        let model_defaults = parent_model
+            .as_ref()
+            .and_then(|model| model.model_messages.as_ref())
+            .and_then(|messages| messages.guardian_v2.as_ref());
+        let guardian_config = match base_guardian_config.with_model_defaults(model_defaults) {
+            Ok(config) => config,
+            Err(error) => {
+                score_progress.clear_score();
+                score_progress.fail_closed(sampled_at);
+                record_classification(
+                    metrics.as_deref(),
+                    context_mode,
+                    classification_started_at.elapsed(),
+                    "failure",
+                    Some("configuration_error"),
+                );
+                self.event_sink.emit_warning(ExtensionWarning {
+                    thread_id: input.thread_store.level_id().to_owned(),
+                    turn_id: Some(input.turn_id.to_owned()),
+                    message: error,
+                });
+                return;
+            }
+        };
+        let score_generation = score_progress.begin(input.model_info, &guardian_config);
         let policy = guardian_config.policy_for_model(parent_model.as_deref());
         if !policy.scoring_enabled() {
             input.thread_store.remove::<GuardianV2Enabled>();
@@ -131,10 +158,7 @@ impl GuardianV2Extension {
         }) {
             score_progress.observe_js_execution();
         }
-        let metrics = score_progress.metrics.clone();
-        let context_mode = GuardianContextMode::from_history(input.conversation_history.as_ref());
         let analytics = input.session_store.get::<AnalyticsEventsClient>();
-        let sampled_at = SystemTime::now();
         let (tool_call_index, reservation) = match input.thread_store.get::<ConversationBackend>() {
             Some(conversation) => {
                 let (index, reservation) = conversation.reserve(|| score_progress.observe(&input));
@@ -147,7 +171,7 @@ impl GuardianV2Extension {
             Ok(reservation) => reservation,
             Err(error) => {
                 score_progress.invalidate(tool_call_index);
-                score_progress.fail_closed(sampled_at);
+                score_progress.fail_closed_for_generation(score_generation, sampled_at);
                 record_classification(
                     metrics.as_deref(),
                     context_mode,
@@ -226,29 +250,6 @@ impl GuardianV2Extension {
             return;
         }
         input.thread_store.insert(GuardianV2Enabled);
-        let model_defaults = parent_model
-            .as_ref()
-            .and_then(|model| model.model_messages.as_ref())
-            .and_then(|messages| messages.guardian_v2.as_ref());
-        let guardian_config = match guardian_config.with_model_defaults(model_defaults) {
-            Ok(config) => config,
-            Err(error) => {
-                score_progress.fail_closed(sampled_at);
-                record_classification(
-                    metrics.as_deref(),
-                    context_mode,
-                    classification_started_at.elapsed(),
-                    "failure",
-                    Some("configuration_error"),
-                );
-                self.event_sink.emit_warning(ExtensionWarning {
-                    thread_id: input.thread_store.level_id().to_owned(),
-                    turn_id: Some(input.turn_id.to_owned()),
-                    message: error,
-                });
-                return;
-            }
-        };
         if guardian_config.transcript.include_images {
             input
                 .thread_store
@@ -285,7 +286,7 @@ impl GuardianV2Extension {
                         ("failure", Some("parent_compaction_unusable"))
                     }
                 };
-                score_progress.fail_closed(sampled_at);
+                score_progress.fail_closed_for_generation(score_generation, sampled_at);
                 record_classification(
                     metrics.as_deref(),
                     context_mode,
@@ -308,7 +309,7 @@ impl GuardianV2Extension {
             Ok(text) => text,
             Err(ActionRenderError::TooLarge { .. }) => {
                 score_progress.mark_oversized(input.call_id, tool_call_index);
-                score_progress.fail_closed(sampled_at);
+                score_progress.fail_closed_for_generation(score_generation, sampled_at);
                 record_classification(
                     metrics.as_deref(),
                     context_mode,
@@ -320,7 +321,7 @@ impl GuardianV2Extension {
             }
             Err(error) => {
                 score_progress.invalidate(tool_call_index);
-                score_progress.fail_closed(sampled_at);
+                score_progress.fail_closed_for_generation(score_generation, sampled_at);
                 record_classification(
                     metrics.as_deref(),
                     context_mode,
@@ -365,7 +366,7 @@ impl GuardianV2Extension {
         };
 
         let Some(permissions) = input.permissions.await else {
-            score_progress.fail_closed(sampled_at);
+            score_progress.fail_closed_for_generation(score_generation, sampled_at);
             record_classification(
                 metrics.as_deref(),
                 context_mode,
@@ -385,6 +386,7 @@ impl GuardianV2Extension {
                 .get::<super::decisions::DecisionsSampler>(),
             guardian_config,
             score_progress,
+            score_generation,
             parent_model,
             metrics,
             analytics,

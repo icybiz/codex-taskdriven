@@ -88,6 +88,18 @@ pub(crate) fn build_model_selection_edits(
     model: &str,
     effort: Option<impl ToString>,
 ) -> Vec<ConfigEdit> {
+    build_model_routing_selection_edits(
+        model,
+        effort,
+        codex_protocol::config_types::ModelRouting::Fixed,
+    )
+}
+
+pub(crate) fn build_model_routing_selection_edits(
+    model: &str,
+    effort: Option<impl ToString>,
+    routing: codex_protocol::config_types::ModelRouting,
+) -> Vec<ConfigEdit> {
     let effort_edit = effort.map_or_else(
         || clear_config_value("model_reasoning_effort"),
         |effort| {
@@ -100,6 +112,7 @@ pub(crate) fn build_model_selection_edits(
     vec![
         replace_config_value("model", serde_json::json!(model)),
         effort_edit,
+        replace_config_value("model_routing", serde_json::json!(routing.as_str())),
     ]
 }
 

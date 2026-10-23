@@ -25,6 +25,39 @@
       ],
       "type": "object"
     },
+    "ActiveTurnModel": {
+      "description": "Most recent inference request in the live turn of a resumed thread.",
+      "properties": {
+        "effort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReasoningEffort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "sequence": {
+          "description": "Monotonic model-state sequence shared with live model notifications.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "sequence",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "AgentMessageDelivery": {
       "enum": [
         "async"
@@ -3178,6 +3211,18 @@
     }
   },
   "properties": {
+    "activeModel": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ActiveTurnModel"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Last model actually requested by the live turn, independent of future settings."
+    },
     "approvalPolicy": {
       "$ref": "#/definitions/AskForApproval"
     },
@@ -3232,6 +3277,15 @@
     },
     "modelProvider": {
       "type": "string"
+    },
+    "modelRouting": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/ModelRouting"
+        }
+      ],
+      "default": "fixed",
+      "description": "Selection policy for future turns; `model` remains a concrete model."
     },
     "reasoningEffort": {
       "anyOf": [

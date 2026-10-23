@@ -121,6 +121,7 @@ async fn confirmed_root_delivery_invalidates_root_and_worker_cached_approvals() 
         /*model_defaults*/ None,
         ToolCallSource::Direct,
         MessagingSetup::CodeMode(format!("{}/user-messaging", messaging_server.uri())),
+        /*captured_model*/ None,
     )
     .await?;
     wait_for_mcp_server(&test.codex, "codex_apps").await?;

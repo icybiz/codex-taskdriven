@@ -283,6 +283,9 @@ mod tests {
     use std::io;
     use std::path::PathBuf;
 
+    use base64::Engine;
+    use base64::engine::general_purpose;
+
     use super::image_protocol::ImageProtocol;
     use super::*;
 
@@ -352,6 +355,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let frame = dir.path().join("frame.png");
         std::fs::write(&frame, b"png").unwrap();
+        let encoded_frame_path = general_purpose::STANDARD
+            .encode(frame.canonicalize().unwrap().to_string_lossy().as_bytes());
         let request = AmbientPetDraw {
             frame,
             protocol: ImageProtocol::KittyLocalFile,
@@ -372,7 +377,7 @@ mod tests {
         assert!(output.contains("a=d,d=I,i=49374,q=2;"));
         assert!(output.contains("\x1b[4;3H"));
         assert!(output.contains("a=T,t=f,f=100,c=4,r=2,q=2,i=49374,C=1;"));
-        assert!(!output.contains("cG5n"));
+        assert!(output.contains(&encoded_frame_path));
         assert!(output.contains("\x1b8"));
     }
 

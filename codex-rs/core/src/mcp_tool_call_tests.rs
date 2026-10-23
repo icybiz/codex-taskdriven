@@ -3693,3 +3693,5 @@ async fn approval_metadata_is_released_when_the_invocation_future_is_dropped() {
         ],
     );
 }
+#[path = "mcp_captured_model_tests.rs"]
+mod captured_model_tests;

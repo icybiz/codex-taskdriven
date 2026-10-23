@@ -279,6 +279,14 @@
       ],
       "type": "string"
     },
+    "ModelRouting": {
+      "description": "Only TaskDriven enables automatic work-phase transitions. Older settings without a routing policy retain ordinary fixed-model behavior.",
+      "enum": [
+        "fixed",
+        "taskDriven"
+      ],
+      "type": "string"
+    },
     "MultiAgentMode": {
       "description": "Controls the effective multi-agent delegation instructions for a turn. `custom` means the configured mode hint defines the policy instead of a built-in policy.",
       "oneOf": [
@@ -455,6 +463,15 @@
         },
         "model": {
           "type": "string"
+        },
+        "modelRouting": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ModelRouting"
+            }
+          ],
+          "default": "fixed",
+          "description": "Automatic routing is explicitly selected independently of the real model."
         },
         "reasoning_effort": {
           "anyOf": [

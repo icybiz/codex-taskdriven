@@ -15,6 +15,12 @@
     "reason": {
       "$ref": "#/definitions/ModelRerouteReason"
     },
+    "sequence": {
+      "description": "Monotonic model-state sequence within this turn; zero is a legacy event.",
+      "format": "uint64",
+      "minimum": 0.0,
+      "type": "integer"
+    },
     "threadId": {
       "type": "string"
     },

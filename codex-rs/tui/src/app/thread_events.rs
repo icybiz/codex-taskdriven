@@ -70,6 +70,7 @@ pub(super) struct ThreadEventStore {
     pub(super) active_reasoning_item: Option<codex_app_server_protocol::ItemStartedNotification>,
     // Lifecycle identity must survive bounded replay-buffer eviction.
     pub(super) latest_turn_id: Option<String>,
+    pub(super) latest_model: Option<codex_app_server_protocol::TurnModelUpdatedNotification>,
     pub(super) pending_interrupt_turn_id: Option<String>,
     pub(super) input_state: Option<ThreadInputState>,
     pub(super) capacity: usize,
@@ -115,6 +116,7 @@ impl ThreadEventStore {
             active_turn_id: None,
             active_reasoning_item: None,
             latest_turn_id: None,
+            latest_model: None,
             pending_interrupt_turn_id: None,
             input_state: None,
             capacity,
@@ -132,14 +134,38 @@ impl ThreadEventStore {
         turns: Vec<Turn>,
     ) -> Self {
         let mut store = Self::new(capacity);
-        store.session = Some(session);
-        store.set_turns(turns);
+        store.set_session(session, turns);
         store
     }
 
     pub(super) fn set_session(&mut self, session: ThreadSessionState, turns: Vec<Turn>) {
-        self.session = Some(session);
         self.set_turns(turns);
+        if let Some(model) = session.active_model.as_ref() {
+            self.active_turn_id = Some(model.turn_id.clone());
+        }
+        let (model, effort, model_routing) = session.collaboration_mode.as_ref().map_or(
+            (
+                session.model.as_str(),
+                session.reasoning_effort.as_ref(),
+                session.model_routing,
+            ),
+            |mode| {
+                (
+                    mode.model(),
+                    mode.settings.reasoning_effort.as_ref(),
+                    mode.settings.model_routing,
+                )
+            },
+        );
+        self.clear_idle_model_display_for_settings(model, effort, model_routing);
+        if let Some(model) = session.active_model.as_ref()
+            && self.latest_model.as_ref().is_none_or(|previous| {
+                previous.turn_id != model.turn_id || previous.sequence <= model.sequence
+            })
+        {
+            self.latest_model = Some(model.clone());
+        }
+        self.session = Some(session);
     }
 
     pub(super) fn rebase_buffer_after_session_refresh(&mut self) {
@@ -205,6 +231,54 @@ impl ThreadEventStore {
                 {
                     self.active_reasoning_item = None;
                 }
+                if self
+                    .latest_model
+                    .as_ref()
+                    .is_some_and(|model| model.turn_id != turn.turn.id)
+                {
+                    self.latest_model = None;
+                }
+            }
+            ServerNotification::TurnModelUpdated(model)
+                if self.accepts_model_update(&model.turn_id) =>
+            {
+                if self.latest_model.as_ref().is_some_and(|previous| {
+                    previous.turn_id == model.turn_id
+                        && previous.sequence > 0
+                        && model.sequence <= previous.sequence
+                }) {
+                    return;
+                }
+                self.latest_model = Some(model.clone());
+            }
+            ServerNotification::ModelRerouted(model)
+                if self.accepts_model_update(&model.turn_id) =>
+            {
+                if self.latest_model.as_ref().is_some_and(|previous| {
+                    previous.turn_id == model.turn_id
+                        && previous.sequence > 0
+                        && model.sequence <= previous.sequence
+                }) {
+                    return;
+                }
+                self.latest_model = Some(codex_app_server_protocol::TurnModelUpdatedNotification {
+                    sequence: model.sequence,
+                    thread_id: model.thread_id.clone(),
+                    turn_id: model.turn_id.clone(),
+                    model: model.to_model.clone(),
+                    effort: self
+                        .latest_model
+                        .as_ref()
+                        .map(|active| active.effort.clone())
+                        .unwrap_or_else(|| {
+                            self.session.as_ref().and_then(|session| {
+                                session.collaboration_mode.as_ref().map_or_else(
+                                    || session.reasoning_effort.clone(),
+                                    |mode| mode.settings.reasoning_effort.clone(),
+                                )
+                            })
+                        }),
+                });
             }
             ServerNotification::TurnCompleted(turn) => {
                 if self
@@ -326,6 +400,17 @@ impl ThreadEventStore {
         self.push_buffered_event(ThreadBufferedEvent::Request(Box::new(request)));
     }
 
+    fn accepts_model_update(&self, turn_id: &str) -> bool {
+        self.active_turn_id
+            .as_deref()
+            .or_else(|| {
+                self.latest_model
+                    .as_ref()
+                    .map(|model| model.turn_id.as_str())
+            })
+            .is_none_or(|current| current == turn_id)
+    }
+
     pub(super) fn pending_replay_requests(&self) -> Vec<ServerRequest> {
         self.buffer
             .iter()
@@ -355,7 +440,13 @@ impl ThreadEventStore {
 
     pub(super) fn snapshot(&self) -> ThreadEventSnapshot {
         let mut snapshot = ThreadEventSnapshot {
-            session: self.session.clone(),
+            session: self.session.clone().map(|mut session| {
+                session.active_model = self
+                    .latest_model
+                    .clone()
+                    .filter(|model| self.active_turn_id.as_deref() == Some(model.turn_id.as_str()));
+                session
+            }),
             delegated_turns: self.delegated_turns.iter().cloned().collect(),
             turns: self.turns.clone(),
             // Thread switches replay buffered events into a rebuilt ChatWidget. Only replay
@@ -372,6 +463,13 @@ impl ThreadEventStore {
                     | ThreadBufferedEvent::FeedbackSubmission(_) => true,
                 })
                 .cloned()
+                // Keep the last captured model even when streaming output has
+                // evicted its original notification from the bounded buffer.
+                .chain(self.latest_model.iter().cloned().map(|model| {
+                    ThreadBufferedEvent::Notification(Box::new(
+                        ServerNotification::TurnModelUpdated(model),
+                    ))
+                }))
                 .collect(),
             active_reasoning_item: self.active_reasoning_item.clone(),
             input_state: self.input_state.clone(),
@@ -627,6 +725,10 @@ impl ThreadEventChannel {
 }
 
 #[cfg(test)]
+#[path = "thread_model_tests.rs"]
+mod model_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_support::PathBufExt;
@@ -660,8 +762,11 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
 
-    fn test_thread_session(thread_id: ThreadId, cwd: PathBuf) -> ThreadSessionState {
+    pub(super) fn test_thread_session(thread_id: ThreadId, cwd: PathBuf) -> ThreadSessionState {
         ThreadSessionState {
+            active_model: None,
+            model_routing: Default::default(),
+            personality: None,
             daybreak_enabled: false,
             windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
             thread_id,

@@ -7,7 +7,7 @@ use pretty_assertions::assert_eq;
 
 const SAFETY_BUFFERING_HEADER_TEXT: &str = "Giving this request a little extra thought";
 
-fn thread_settings_for_test(
+pub(super) fn thread_settings_for_test(
     model: &str,
     thread_id: ThreadId,
 ) -> codex_app_server_protocol::ThreadSettingsUpdatedNotification {
@@ -32,6 +32,7 @@ fn thread_settings_for_test(
             collaboration_mode: CollaborationMode {
                 mode: ModeKind::Plan,
                 settings: codex_protocol::config_types::Settings {
+                    model_routing: Default::default(),
                     model: model.to_string(),
                     reasoning_effort: Some(ReasoningEffortConfig::High),
                     developer_instructions: None,
@@ -43,8 +44,13 @@ fn thread_settings_for_test(
     }
 }
 
-fn configured_thread_session(thread_id: ThreadId) -> crate::session_state::ThreadSessionState {
+pub(super) fn configured_thread_session(
+    thread_id: ThreadId,
+) -> crate::session_state::ThreadSessionState {
     crate::session_state::ThreadSessionState {
+        active_model: None,
+        model_routing: Default::default(),
+        personality: None,
         daybreak_enabled: false,
         windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
         thread_id,
@@ -1913,7 +1919,7 @@ async fn live_app_server_server_overloaded_error_renders_error() {
 
 #[tokio::test]
 async fn live_app_server_cyber_policy_error_renders_dedicated_notice() {
-    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
     chat.handle_server_notification(
         ServerNotification::TurnStarted(TurnStartedNotification {
@@ -1933,6 +1939,23 @@ async fn live_app_server_cyber_policy_error_renders_dedicated_notice() {
         /*replay_kind*/ None,
     );
     drain_insert_history(&mut rx);
+    chat.safety_buffering_prompt = Some(UserMessage::from("original submitted prompt"));
+    chat.input_queue
+        .queued_user_messages
+        .push_back(UserMessage::from("queued follow-up").into());
+    chat.input_queue
+        .queued_user_message_history_records
+        .push_back(UserMessageHistoryRecord::UserMessageText);
+    chat.input_queue.pending_steers.push_back(PendingSteer {
+        client_id: "test-submission".to_string(),
+        user_message: UserMessage::from("pending steer"),
+        history_record: UserMessageHistoryRecord::UserMessageText,
+        source: UserMessageSource::Prompt,
+        compare_key: PendingSteerCompareKey {
+            message: "pending steer".to_string(),
+            image_count: 0,
+        },
+    });
 
     chat.handle_server_notification(
         ServerNotification::Error(ErrorNotification {
@@ -1950,12 +1973,31 @@ async fn live_app_server_cyber_policy_error_renders_dedicated_notice() {
     );
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1);
-    let rendered = lines_to_single_string(&cells[0]);
+    assert_eq!(cells.len(), 2);
+    let rendered = cells
+        .iter()
+        .map(|cell| lines_to_single_string(cell))
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(rendered.contains("This content can’t be shown"));
     assert!(rendered.contains("We take extra care with some cybersecurity requests"));
+    assert!(rendered.contains("CON did not retry this turn"));
+    assert!(rendered.contains("restored to the composer"));
+    assert!(rendered.contains("Queued follow-ups are paused"));
     assert!(!rendered.contains("server fallback message"));
     assert!(!chat.bottom_pane.is_task_running());
+    assert_eq!(
+        chat.bottom_pane.composer_text(),
+        "original submitted prompt"
+    );
+    assert_eq!(
+        chat.queued_user_message_texts(),
+        vec!["pending steer", "queued follow-up"]
+    );
+    assert!(chat.input_queue.pending_steers.is_empty());
+    assert!(chat.input_queue.recovered_queue);
+    assert!(!chat.maybe_send_next_queued_input());
+    assert_no_submit_op(&mut op_rx);
 }
 
 #[tokio::test]

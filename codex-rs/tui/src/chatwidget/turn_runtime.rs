@@ -139,6 +139,16 @@ impl ChatWidget {
         let sanitized_last_agent_message = last_agent_message.as_deref().map(|message| {
             parse_assistant_markdown(message, self.config.cwd.as_path()).visible_markdown
         });
+        if let Some(message) = sanitized_last_agent_message
+            .as_ref()
+            .filter(|message| !message.is_empty())
+            && !self.transcript.saw_copy_source_this_turn
+        {
+            if !from_replay {
+                self.record_plain_transcript_entry(PlainTranscriptRole::CodexFinal, message);
+            }
+            self.record_agent_markdown(message, last_agent_message.as_deref().unwrap_or(message));
+        }
         // For desktop notifications: prefer the notification payload, fall back to
         // the item-level copy source if present, otherwise send an empty string.
         let notification_response = sanitized_last_agent_message
@@ -415,6 +425,9 @@ impl ChatWidget {
     }
 
     pub(super) fn on_cyber_policy_error(&mut self) {
+        // A policy rejection is terminal. Restore the submitted prompt and keep
+        // queued input paused instead of immediately retrying the same context.
+        let blocked_prompt = self.safety_buffering_prompt.take();
         let can_enable_daybreak =
             self.daybreak_account_eligible() && !self.side_conversation_active();
         let notice = crate::daybreak::notice_for_setting(
@@ -424,8 +437,27 @@ impl ChatWidget {
             can_enable_daybreak,
         );
         self.input_queue.submit_pending_steers_after_interrupt = false;
+        while let Some(pending) = self.input_queue.pending_steers.pop_front() {
+            self.input_queue
+                .rejected_steers_queue
+                .push_back(pending.user_message);
+            self.input_queue
+                .rejected_steer_history_records
+                .push_back(pending.history_record);
+        }
+        let queued_input_paused = self.has_queued_follow_up_messages();
+        self.input_queue.recovered_queue |= queued_input_paused;
+        self.flush_answer_stream_with_separator();
         self.finalize_turn();
+        let prompt_restored = blocked_prompt.is_some();
+        if let Some(prompt) = blocked_prompt {
+            self.restore_user_message_to_composer(prompt);
+        }
         self.add_to_history(history_cell::new_cyber_policy_error_event(notice));
+        self.add_to_history(history_cell::new_cyber_policy_recovery_event(
+            prompt_restored,
+            queued_input_paused,
+        ));
         if notice == crate::daybreak::Notice::Disabled
             && !self.thread_usage.replaying_turn_completion
             && !self.blocks_direct_input
@@ -455,10 +487,12 @@ impl ChatWidget {
             });
             self.defer_input_until_settings_applied();
         }
+        self.refresh_pending_input_preview();
+        self.set_ambient_pet_notification(
+            crate::pets::PetNotificationKind::Failed,
+            /*body*/ None,
+        );
         self.request_redraw();
-
-        // After an error ends the turn, try sending the next queued input.
-        self.maybe_send_next_queued_input();
     }
 
     pub(super) fn on_rate_limit_error(&mut self, error_kind: RateLimitErrorKind, message: String) {

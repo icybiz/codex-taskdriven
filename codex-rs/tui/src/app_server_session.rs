@@ -2010,6 +2010,10 @@ fn config_request_overrides_from_config(
             .as_ref()
             .map(std::string::ToString::to_string),
     );
+    insert(
+        "model_routing",
+        Some(config.model_routing.as_str().to_string()),
+    );
     // Only winning launch choices may replace server defaults or saved thread settings.
     let origins = config.config_layer_stack.origins();
     let effective = config.config_layer_stack.effective_config();
@@ -2238,6 +2242,7 @@ fn thread_resume_params_from_config(
         && let Some(overrides) = config_overrides.as_mut()
     {
         overrides.remove("model_reasoning_effort");
+        overrides.remove("model_routing");
         if overrides.is_empty() {
             config_overrides = None;
         }
@@ -2438,6 +2443,7 @@ async fn thread_session_state_from_thread_start_response(
         response.runtime_workspace_roots.clone(),
         response.instruction_source_path_uris(),
         response.reasoning_effort.clone(),
+        response.model_routing,
         local_settings,
     )
     .await?;
@@ -2476,9 +2482,19 @@ async fn thread_session_state_from_thread_resume_response(
         response.runtime_workspace_roots.clone(),
         response.instruction_source_path_uris(),
         response.reasoning_effort.clone(),
+        response.model_routing,
         local_settings,
     )
     .await?;
+    session.active_model = response.active_model.as_ref().map(|model| {
+        codex_app_server_protocol::TurnModelUpdatedNotification {
+            thread_id: response.thread.id.clone(),
+            turn_id: model.turn_id.clone(),
+            model: model.model.clone(),
+            effort: model.effort.clone(),
+            sequence: model.sequence,
+        }
+    });
     session.collaboration_mode = response.collaboration_mode.clone().map(Box::new);
     session.daybreak_enabled = response.thread.daybreak_enabled.unwrap_or(false);
     Ok(session)
@@ -2513,6 +2529,7 @@ async fn thread_session_state_from_thread_fork_response(
         response.runtime_workspace_roots.clone(),
         response.instruction_source_path_uris(),
         response.reasoning_effort.clone(),
+        response.model_routing,
         local_settings,
     )
     .await?;
@@ -2566,6 +2583,7 @@ async fn thread_session_state_from_thread_response(
     runtime_workspace_roots: Vec<AbsolutePathBuf>,
     instruction_source_paths: Vec<PathUri>,
     reasoning_effort: Option<codex_protocol::openai_models::ReasoningEffort>,
+    model_routing: codex_protocol::config_types::ModelRouting,
     local_settings: &LocalSettings,
 ) -> Result<ThreadSessionState, String> {
     let thread_id = ThreadId::from_string(thread_id)
@@ -2583,11 +2601,13 @@ async fn thread_session_state_from_thread_response(
     Ok(ThreadSessionState {
         daybreak_enabled: false,
         windows_sandbox_host,
+        active_model: None,
         thread_id,
         forked_from_id,
         fork_parent_title: None,
         thread_name,
         model,
+        model_routing,
         model_provider_id,
         service_tier,
         approval_policy,
@@ -2599,6 +2619,7 @@ async fn thread_session_state_from_thread_response(
         instruction_source_paths,
         reasoning_effort,
         collaboration_mode: None,
+        personality: None,
         message_history: Some(MessageHistoryMetadata {
             log_id,
             entry_count,
@@ -3604,6 +3625,7 @@ mod tests {
         assert_eq!(fork.service_tier, expected_service_tier);
         let string = |value: &str| serde_json::Value::String(value.to_string());
         let expected_config = HashMap::from([
+            ("model_routing".to_string(), string("fixed")),
             ("model_reasoning_effort".to_string(), string("high")),
             ("bypass_hook_trust".to_string(), true.into()),
         ]);
@@ -4186,6 +4208,8 @@ mod tests {
         let forked_from_id = ThreadId::new();
         let read_only_profile = PermissionProfile::read_only();
         let response = ThreadResumeResponse {
+            active_model: None,
+            model_routing: codex_protocol::config_types::ModelRouting::Fixed,
             disabled_plugin_ids: Vec::new(),
             thread: codex_app_server_protocol::Thread {
                 originator: None,
@@ -4270,6 +4294,7 @@ mod tests {
             collaboration_mode: Some(codex_protocol::config_types::CollaborationMode {
                 mode: codex_protocol::config_types::ModeKind::Plan,
                 settings: codex_protocol::config_types::Settings {
+                    model_routing: Default::default(),
                     model: "gpt-5.5".to_string(),
                     reasoning_effort: None,
                     developer_instructions: Some("Keep planning".to_string()),
@@ -4435,6 +4460,7 @@ mod tests {
             Vec::new(),
             Vec::new(),
             /*reasoning_effort*/ None,
+            codex_protocol::config_types::ModelRouting::Fixed,
             &LocalSettings::from(&config),
         )
         .await
@@ -4471,6 +4497,7 @@ mod tests {
             Vec::new(),
             Vec::new(),
             /*reasoning_effort*/ None,
+            codex_protocol::config_types::ModelRouting::Fixed,
             &LocalSettings::from(&config),
         )
         .await

@@ -185,11 +185,41 @@ pub struct ModelListResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ModelReroutedNotification {
+    /// Monotonic model-state sequence within this turn; zero is a legacy event.
+    #[serde(default, skip_serializing_if = "model_sequence_is_zero")]
+    pub sequence: u64,
     pub thread_id: String,
     pub turn_id: String,
     pub from_model: String,
     pub to_model: String,
     pub reason: ModelRerouteReason,
+}
+
+/// Most recent inference request in the live turn of a resumed thread.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ActiveTurnModel {
+    pub turn_id: String,
+    pub model: String,
+    pub effort: Option<ReasoningEffort>,
+    /// Monotonic model-state sequence shared with live model notifications.
+    pub sequence: u64,
+}
+
+/// Captured inference settings, emitted before response output. Repeated
+/// requests may report the same settings. Persistent thread defaults are unchanged.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct TurnModelUpdatedNotification {
+    /// Monotonic model-state sequence within this turn; zero is a legacy event.
+    #[serde(default, skip_serializing_if = "model_sequence_is_zero")]
+    pub sequence: u64,
+    pub thread_id: String,
+    pub turn_id: String,
+    pub model: String,
+    pub effort: Option<ReasoningEffort>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
@@ -221,4 +251,12 @@ pub struct ModelSafetyBufferingUpdatedNotification {
     pub reasons: Vec<String>,
     pub show_buffering_ui: bool,
     pub faster_model: Option<String>,
+}
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires a reference to the field"
+)]
+fn model_sequence_is_zero(sequence: &u64) -> bool {
+    *sequence == 0
 }

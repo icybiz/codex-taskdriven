@@ -46,6 +46,7 @@ fn settings_item(
                 collaboration_mode: CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: "gpt-5".to_string(),
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -87,6 +88,7 @@ fn turn_context_item(
 #[test]
 fn latest_settings_snapshot_wins() {
     let expected = PersistedResumeSettings {
+        model_routing: Default::default(),
         approval_policy: AskForApproval::OnRequest,
         approvals_reviewer: Some(ApprovalsReviewer::AutoReview),
         active_permission_profile: Some(ActivePermissionProfile::new("dev")),
@@ -110,6 +112,7 @@ fn latest_settings_snapshot_wins() {
 #[test]
 fn latest_turn_context_wins_over_earlier_settings_update() {
     let expected = PersistedResumeSettings {
+        model_routing: Default::default(),
         approval_policy: AskForApproval::UnlessTrusted,
         approvals_reviewer: Some(ApprovalsReviewer::User),
         active_permission_profile: Some(ActivePermissionProfile::read_only()),
@@ -151,9 +154,48 @@ fn older_reviewer_is_used_when_latest_turn_context_omits_it() {
     assert_eq!(
         latest_persisted_resume_settings(&history),
         Some(PersistedResumeSettings {
+            model_routing: Default::default(),
             approval_policy: AskForApproval::OnRequest,
             approvals_reviewer: Some(ApprovalsReviewer::AutoReview),
             active_permission_profile: None,
         })
+    );
+}
+
+#[test]
+fn taskdriven_resume_keeps_selection_and_later_old_turn_context_cannot_restore_it() {
+    use codex_protocol::config_types::ModelRouting;
+    let mut automatic = settings_item(AskForApproval::OnRequest, ApprovalsReviewer::User, None);
+    let RolloutItem::EventMsg(EventMsg::ThreadSettingsApplied(settings)) = &mut automatic else {
+        unreachable!()
+    };
+    settings
+        .thread_settings
+        .collaboration_mode
+        .settings
+        .model_routing = ModelRouting::TaskDriven;
+    let mut old_turn = turn_context_item("ongoing", AskForApproval::OnRequest, None, None);
+    let RolloutItem::TurnContext(context) = &mut old_turn else {
+        unreachable!()
+    };
+    context.collaboration_mode = Some(settings.thread_settings.collaboration_mode.clone());
+    let mut history = vec![automatic, old_turn.clone()];
+    assert_eq!(
+        latest_persisted_resume_settings(&history)
+            .unwrap()
+            .model_routing,
+        ModelRouting::TaskDriven
+    );
+    history.push(settings_item(
+        AskForApproval::OnRequest,
+        ApprovalsReviewer::User,
+        None,
+    ));
+    history.push(old_turn);
+    assert_eq!(
+        latest_persisted_resume_settings(&history)
+            .unwrap()
+            .model_routing,
+        ModelRouting::Fixed
     );
 }

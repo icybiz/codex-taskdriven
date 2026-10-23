@@ -539,6 +539,7 @@ async fn persisted_remote_plugin_command_attribution_flows_through_turn_context(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,

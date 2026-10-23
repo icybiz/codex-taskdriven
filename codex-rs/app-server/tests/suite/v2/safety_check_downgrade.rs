@@ -78,6 +78,7 @@ async fn openai_model_header_mismatch_emits_model_rerouted_notification_v2() -> 
     assert_eq!(
         rerouted,
         ModelReroutedNotification {
+            sequence: 0,
             thread_id: thread.id,
             turn_id: turn_start.turn.id,
             from_model: REQUESTED_MODEL.to_string(),
@@ -205,6 +206,7 @@ async fn response_model_field_mismatch_emits_model_rerouted_notification_v2_when
     assert_eq!(
         rerouted,
         ModelReroutedNotification {
+            sequence: 0,
             thread_id: thread.id,
             turn_id: turn_start.turn.id,
             from_model: REQUESTED_MODEL.to_string(),

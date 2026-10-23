@@ -978,6 +978,7 @@ async fn background_network_approval_uses_current_review_settings_and_original_e
                                 codex_protocol::openai_models::ReasoningEffort::Medium,
                             ),
                             developer_instructions: None,
+                            model_routing: Default::default(),
                         },
                     }),
                     ..Default::default()
@@ -3506,6 +3507,7 @@ async fn submit_managed_network_turn(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

@@ -52,6 +52,7 @@ use crate::history_cell::HistoryCell;
 #[cfg(not(debug_assertions))]
 use crate::history_cell::UpdateAvailableHistoryCell;
 use crate::hooks_rpc::HookTrustUpdate;
+use crate::interruption_recovery::RecoveryRun;
 use crate::key_hint::KeyBinding;
 use crate::key_hint::KeyBindingListExt;
 use crate::keymap::KeyChordMatcher;
@@ -238,6 +239,7 @@ mod loaded_threads;
 mod managed_worktree_creation;
 mod misalignment_policy;
 mod model_defaults;
+mod model_routing;
 mod new_session;
 mod quick_dials;
 mod turn_tips;
@@ -613,6 +615,10 @@ pub(crate) struct App {
     pub(crate) pending_update_action: Option<UpdateAction>,
     /// Retained through all loop exits so shutdown cannot interrupt stop followed by start.
     daemon_restart: Option<JoinHandle<anyhow::Result<codex_app_server_daemon::LifecycleOutput>>>,
+
+    /// Persists the active thread identity until a controlled TUI exit so a
+    /// crash or machine reboot can be explained on the next start.
+    interruption_recovery: RecoveryRun,
 
     /// Tracks the thread we intentionally shut down while exiting the app.
     ///

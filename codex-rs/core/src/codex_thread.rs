@@ -750,6 +750,7 @@ impl CodexThread {
         SessionSettingsUpdate {
             turn_extension_init,
             step_settings: StepSettingsUpdate {
+                model_routing: Default::default(),
                 model,
                 effort,
                 collaboration_mode,
@@ -967,6 +968,13 @@ impl CodexThread {
 
     pub fn state_db(&self) -> Option<StateDbHandle> {
         self.session.state_db()
+    }
+
+    /// Last captured model state of the live turn. Pending model choices are excluded.
+    pub async fn active_turn_model(
+        &self,
+    ) -> Option<(String, codex_protocol::protocol::TurnModelUpdatedEvent)> {
+        self.session.active_turn_model().await
     }
 
     pub async fn config_snapshot(&self) -> ThreadConfigSnapshot {

@@ -11,9 +11,11 @@ use std::time::SystemTime;
 
 use codex_extension_api::ExtensionMetrics;
 use codex_extension_api::ToolStartInput;
+use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::security_risk::SecurityRiskScore;
 
 use super::authorization::ScoreAuthorization;
+use super::config::GuardianV2Config;
 use super::wrapper_lag::WrapperLag;
 
 #[derive(Default)]
@@ -58,6 +60,8 @@ impl PendingScore {
 
 #[derive(Default)]
 struct ScoreState {
+    configuration: Option<(ModelInfo, GuardianV2Config)>,
+    generation: u64,
     score: Option<SecurityRiskScore>,
     score_index: usize,
     wrapper_lag: WrapperLag,
@@ -100,6 +104,48 @@ impl GuardianV2ScoreProgress {
         state.wrapper_lag.record(input, index);
         self.observations.send_replace(());
         index
+    }
+
+    /// Starts or reuses the score generation for one exact model/configuration pair.
+    /// Returning to an earlier model creates a new generation so delayed results
+    /// from its previous phase cannot authorize the new phase.
+    #[expect(
+        clippy::expect_used,
+        reason = "reusing a generation at counter exhaustion could authorize a stale score"
+    )]
+    pub(super) fn begin(&self, model: &ModelInfo, config: &GuardianV2Config) -> u64 {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let matches =
+            state
+                .configuration
+                .as_ref()
+                .is_some_and(|(captured_model, captured_config)| {
+                    captured_model == model && captured_config == config
+                });
+        if !matches {
+            state.configuration = Some((model.clone(), config.clone()));
+            state.generation = state
+                .generation
+                .checked_add(1)
+                .expect("score generation overflow");
+            state.score = None;
+            state.authorization = None;
+        }
+        state.generation
+    }
+
+    pub(super) fn matches(&self, model: &ModelInfo, config: &GuardianV2Config) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .configuration
+            .as_ref()
+            .is_some_and(|(captured_model, captured_config)| {
+                captured_model == model && captured_config == config
+            })
     }
 
     pub(super) fn observe_js_execution(&self) {
@@ -163,6 +209,32 @@ impl GuardianV2ScoreProgress {
         accepted
     }
 
+    pub(super) fn publish_for_generation(
+        &self,
+        generation: u64,
+        score: SecurityRiskScore,
+        authorization: ScoreAuthorization,
+        index: usize,
+    ) -> bool {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if state.configuration.is_none() || state.generation != generation {
+            return false;
+        }
+        let accepted = state
+            .score
+            .as_ref()
+            .is_none_or(|previous| previous.sampled_at < score.sampled_at);
+        if accepted {
+            state.score = Some(score);
+            state.authorization = Some(authorization);
+            state.latest_scored_tool_call = state.latest_scored_tool_call.max(index);
+        }
+        accepted
+    }
+
     pub(super) fn fail_closed(&self, sampled_at: SystemTime) {
         let mut state = self
             .state
@@ -175,6 +247,29 @@ impl GuardianV2ScoreProgress {
             sampled_at: Some(sampled_at.into()),
         };
         // Failures win timestamp ties; successful samples must be strictly newer.
+        if state
+            .score
+            .as_ref()
+            .is_none_or(|previous| previous.sampled_at <= score.sampled_at)
+        {
+            state.score = Some(score);
+        }
+    }
+
+    pub(super) fn fail_closed_for_generation(&self, generation: u64, sampled_at: SystemTime) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if state.configuration.is_none() || state.generation != generation {
+            return;
+        }
+        let score = SecurityRiskScore {
+            scores: BTreeMap::from([("action_risk".to_owned(), 1.0)]),
+            call_id: None,
+            action: None,
+            sampled_at: Some(sampled_at.into()),
+        };
         if state
             .score
             .as_ref()

@@ -131,11 +131,25 @@ async fn app_server_cyber_policy_error_renders_dedicated_notice() {
     );
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1);
-    let rendered = lines_to_single_string(&cells[0]);
+    assert_eq!(cells.len(), 2);
+    let rendered = cells
+        .iter()
+        .map(|cell| lines_to_single_string(cell))
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(rendered.contains("This content can’t be shown"));
     assert!(rendered.contains("We take extra care with some cybersecurity requests"));
     assert!(rendered.contains("Apply for Daybreak"));
+    assert!(rendered.contains("CON did not retry this turn"));
+    assert!(rendered.contains("fresh thread"));
+    let rendered_without_whitespace = rendered
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    assert!(
+        rendered_without_whitespace
+            .contains("openai.com/form/enterprise-trusted-access-for-cyber/")
+    );
     assert!(!rendered.contains("server fallback message"));
 }
 
@@ -4432,6 +4446,9 @@ async fn session_configured_clears_goal_status_footer() {
 
     let rollout_file = NamedTempFile::new().unwrap();
     chat.handle_thread_session(crate::session_state::ThreadSessionState {
+        active_model: None,
+        model_routing: Default::default(),
+        personality: None,
         daybreak_enabled: false,
         windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
         thread_id: ThreadId::new(),
@@ -5514,6 +5531,8 @@ async fn overlapping_hook_live_cell_tracks_parallel_quiet_hooks() {
 #[tokio::test]
 async fn running_hook_does_not_displace_active_exec_cell() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config.animations = false;
+    chat.local_settings.tui.animations = false;
 
     let begin = begin_exec(&mut chat, "call-1", "echo done");
     let exec_running = active_blob(&chat);

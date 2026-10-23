@@ -22,7 +22,7 @@ pub(super) struct TestDaemon {
 
 impl TestDaemon {
     pub(super) fn new() -> Result<Self> {
-        let home = tempfile::Builder::new().tempdir_in("/tmp")?;
+        let home = tempfile::Builder::new().tempdir()?;
         let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
         let codex_source = std::fs::canonicalize(&codex)?;
         let target = if cfg!(target_os = "macos") {

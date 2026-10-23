@@ -4328,6 +4328,7 @@ async fn fork_startup_context_then_first_turn_diff_snapshot() -> anyhow::Result<
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Plan,
         settings: Settings {
+            model_routing: Default::default(),
             model: forked.session_configured.model.clone(),
             reasoning_effort: None,
             developer_instructions: Some("Fork turn collaboration instructions.".to_string()),
@@ -4470,6 +4471,7 @@ async fn set_rate_limits_retains_previous_credits() {
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort,
             developer_instructions: None,
@@ -4593,6 +4595,7 @@ async fn set_rate_limits_updates_plan_type_when_present() {
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort,
             developer_instructions: None,
@@ -5216,6 +5219,7 @@ pub(crate) async fn make_session_configuration_for_tests() -> SessionConfigurati
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort,
             developer_instructions: None,
@@ -6787,6 +6791,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort,
             developer_instructions: None,
@@ -7107,6 +7112,7 @@ async fn make_session_with_config_and_rx(
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort: config.model_reasoning_effort.clone(),
             developer_instructions: None,
@@ -7243,6 +7249,7 @@ async fn make_session_with_history_source_and_agent_control_and_rx(
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort: config.model_reasoning_effort.clone(),
             developer_instructions: None,
@@ -9061,6 +9068,7 @@ where
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort,
             developer_instructions: None,

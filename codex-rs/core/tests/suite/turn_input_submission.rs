@@ -628,6 +628,7 @@ async fn recover_turn_if_idle_preserves_id_and_resumes_plan_mode() {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Plan,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: test.session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,

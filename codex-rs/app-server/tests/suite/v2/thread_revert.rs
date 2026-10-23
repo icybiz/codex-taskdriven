@@ -653,6 +653,7 @@ async fn thread_revert_interrupts_active_turn_and_keeps_thread_loaded() -> Resul
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Plan,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: "mock-model".to_string(),
                         reasoning_effort: Some(ReasoningEffort::Medium),
                         developer_instructions: None,

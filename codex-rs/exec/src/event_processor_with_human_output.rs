@@ -294,6 +294,18 @@ impl EventProcessor for EventProcessorWithHumanOutput {
                 self.render_item_completed(notification.item);
                 CodexStatus::Running
             }
+            ServerNotification::TurnModelUpdated(notification) => {
+                eprintln!(
+                    "{} {} {}",
+                    "active model:".style(self.yellow).style(self.bold),
+                    notification.model,
+                    notification
+                        .effort
+                        .as_ref()
+                        .map_or("default", |effort| effort.as_str()),
+                );
+                CodexStatus::Running
+            }
             ServerNotification::ModelRerouted(notification) => {
                 eprintln!(
                     "{} {} -> {}",

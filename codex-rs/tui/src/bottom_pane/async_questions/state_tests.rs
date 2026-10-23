@@ -483,8 +483,8 @@ fn question_wrapped_options_and_other_share_the_text_indent() {
     assert_eq!(editor.visible_options.get(), (0, editor.options_len()));
     editor.state.pending[editor.state.current_idx]
         .question
-        .title = "Long question ".repeat(3 * 65_536);
-    assert_eq!(editor.desired_height(/*width*/ 50), u16::MAX);
+        .title = "x ".repeat(usize::from(u16::MAX));
+    assert_eq!(editor.desired_height(/*width*/ 1), u16::MAX);
     let clipped = render_editor(&editor, /*width*/ 50, /*height*/ 3);
     editor.go_next_or_submit();
     assert!(editor.submission.is_none());

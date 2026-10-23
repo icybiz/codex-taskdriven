@@ -1410,6 +1410,9 @@ impl App {
         if self.primary_thread_id != Some(thread_id) {
             self.recap.reset_for_new_thread(Instant::now());
         }
+        let recovery_update = self
+            .interruption_recovery
+            .update_session(thread_id, session.cwd.as_path());
         self.primary_thread_id = Some(thread_id);
         self.agents_overview.hidden_threads.remove(&thread_id);
         self.agents_overview.threads.entry(thread_id).or_default();
@@ -1435,6 +1438,12 @@ impl App {
             | ThreadAttachPresentation::SessionLineage => {
                 self.chat_widget.handle_thread_session(session);
             }
+        }
+        if let Err(err) = recovery_update {
+            tracing::error!(error = %err, %thread_id, "failed to persist active recovery session");
+            self.chat_widget.add_warning_message(format!(
+                "Codex kann diesen Lauf nicht für eine Wiederaufnahme nach Absturz vormerken: {err}"
+            ));
         }
         let should_buffer_initial_replay = !turns.is_empty();
         let replayed_final_items = realtime_delivery::completed_agent_items_from_turns(&turns);
@@ -1705,6 +1714,10 @@ impl App {
             replay_filter::snapshot_has_pending_interactive_request(&snapshot);
         self.chat_widget
             .set_queue_autosend_suppressed(/*suppressed*/ true);
+        let resumed_live_model = snapshot
+            .session
+            .as_ref()
+            .and_then(|session| session.active_model.clone());
         let has_resumed_collaboration_mode = snapshot
             .session
             .as_ref()
@@ -1771,6 +1784,11 @@ impl App {
         if !snapshot.turns.is_empty() {
             self.chat_widget
                 .replay_thread_turns(snapshot.turns, ReplayKind::ThreadSnapshot);
+        }
+        // Historical completions and local input restoration cannot clear a live
+        // server snapshot. New buffered lifecycle events still take precedence.
+        if let Some(model) = resumed_live_model {
+            self.chat_widget.restore_active_model_snapshot(model);
         }
         for (event, changes) in snapshot.events.into_iter().zip(request_changes) {
             reasoning_replay.before_event(&event, &mut self.chat_widget);

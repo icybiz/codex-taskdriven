@@ -145,6 +145,7 @@ async fn request_user_input_round_trip_for_mode(mode: ModeKind) -> anyhow::Resul
                 collaboration_mode: Some(CollaborationMode {
                     mode,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_configured.model.clone(),
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -294,6 +295,7 @@ async fn request_user_input_interrupt_emits_deferred_token_count(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Plan,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_configured.model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -416,6 +418,7 @@ async fn request_user_input_rejected_in_default_mode_by_default() -> anyhow::Res
     assert_request_user_input_rejected("Default", |model| CollaborationMode {
         mode: ModeKind::Default,
         settings: Settings {
+            model_routing: Default::default(),
             model,
             reasoning_effort: None,
             developer_instructions: None,

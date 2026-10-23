@@ -25,9 +25,12 @@ use crate::session::turn_context::TurnContext;
 
 const MAX_PROVENANCE_BYTES: usize = 128;
 
-pub(crate) fn node_repl_review_evidence_mode(turn: &TurnContext) -> NodeReplReviewEvidenceMode {
+pub(crate) fn node_repl_review_evidence_mode(
+    turn: &TurnContext,
+    model_info: &codex_protocol::openai_models::ModelInfo,
+) -> NodeReplReviewEvidenceMode {
     let features = &turn.config.features;
-    if turn.model_info().computer_use_review_required()
+    if model_info.computer_use_review_required()
         || features.enabled(Feature::GuardianEnhancedNodeReplTranscripts)
             && features.enabled(Feature::GuardianNodeReplTranscriptImages)
     {

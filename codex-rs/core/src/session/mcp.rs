@@ -931,10 +931,48 @@ async fn review_guardian_mcp_elicitation(
     let Some(mcp_config) = session.services.mcp_runtime.current_config() else {
         return Ok(None);
     };
-    let step_settings = turn_context.next_step_settings.load_full();
+    // A server-supplied id only selects a host-registered call on that server.
+    // Retain its captured settings instead of reading a later work-phase choice.
+    let call_id = request.elicitation.meta().and_then(|meta| {
+        if is_node_repl_backed_server(&request.server_name) {
+            meta.get("callId").and_then(Value::as_str)
+        } else if request.server_name == CODEX_APPS_MCP_SERVER_NAME {
+            meta.get(MCP_TOOL_CODEX_APPS_META_KEY)
+                .and_then(Value::as_object)
+                .and_then(|meta| meta.get("call_id"))
+                .and_then(Value::as_str)
+        } else {
+            None
+        }
+    });
+    let approval_context = call_id
+        .and_then(|call_id| session.mcp_tool_approval_metadata(&request.server_name, call_id));
+    let captured_context = approval_context.as_ref().and_then(|context| {
+        let invocation = context.invocation.as_ref()?;
+        (invocation.server == request.server_name
+            && context.review_context.turn().sub_id == turn_context.sub_id)
+            .then(|| context.review_context.clone())
+    });
+    let mut review_context = match captured_context {
+        Some(context) => context,
+        None if turn_context
+            .config
+            .features
+            .enabled(Feature::StepModelSwitching) =>
+        {
+            // Without a trusted originating call, a model-specific automatic
+            // review is ambiguous. Let the ordinary user elicitation path handle it.
+            return Ok(None);
+        }
+        None => crate::guardian::GuardianReviewContext::from_resolved_settings(
+            Arc::clone(&turn_context),
+            &turn_context.next_step_settings.load_full(),
+            &turn_context.initial_environments,
+        ),
+    };
 
     // User approval skips ordinary CUA checks, not separate sensitive requests.
-    let user_cua_execution = step_settings.approvals_reviewer() == ApprovalsReviewer::User
+    let user_cua_execution = review_context.approvals_reviewer == ApprovalsReviewer::User
         && is_node_repl_backed_server(&request.server_name)
         && request.elicitation.meta().is_some_and(|meta| {
             metadata_str(meta, MCP_ELICITATION_TOOL_NAME_KEY) == Some("js")
@@ -947,8 +985,8 @@ async fn review_guardian_mcp_elicitation(
 
     // Full Access skips inference, not the active-turn and cancellation checks.
     if (user_cua_execution
-        || turn_context.initial_environments.has_full_access(
-            turn_context.approval_policy(),
+        || review_context.environments().has_full_access(
+            review_context.approval_policy,
             &turn_context
                 .config
                 .permissions
@@ -968,22 +1006,12 @@ async fn review_guardian_mcp_elicitation(
         };
         return Ok(Some(mcp_elicitation_response_from_guardian_decision(
             decision,
-            turn_context.model_info(),
+            &review_context.model_info,
         )));
     }
 
     // The invocation identifies the tool event, but a nested elicitation can
     // review a different action and connector than the enclosing JavaScript.
-    let call_id = request
-        .elicitation
-        .meta()
-        .and_then(|meta| match request.server_name.as_str() {
-            CODEX_APPS_MCP_SERVER_NAME => meta.get(MCP_TOOL_CODEX_APPS_META_KEY)?.get("call_id"),
-            _ => meta.get("callId"),
-        })
-        .and_then(Value::as_str);
-    let approval_context = call_id
-        .and_then(|call_id| session.mcp_tool_approval_metadata(&request.server_name, call_id));
     let (originating_call_id, guardian_scope) = if let Some(call_id) = call_id
         && let Some(McpToolApprovalContext {
             invocation: Some(invocation),
@@ -1006,12 +1034,6 @@ async fn review_guardian_mcp_elicitation(
         Some(Value::Bool(true))
     );
 
-    // Bind the review to the issuing step, which may include environments that
-    // became ready after the turn started. Do not refresh an in-flight action.
-    let mut review_context = approval_context
-        .as_ref()
-        .map(|context| context.review_context.clone())
-        .unwrap_or_else(|| crate::guardian::GuardianReviewContext::from(&turn_context));
     let strict_auto_review = matches!(
         request
             .elicitation
@@ -1070,7 +1092,7 @@ async fn review_guardian_mcp_elicitation(
             || crate::connectors::mcp_approvals_reviewer_from_layers(
                 &mcp_config.config_layer_stack,
                 ApprovalsReviewer::AutoReview,
-                Some(turn_context.model_info().slug.as_str()),
+                Some(review_context.model_info.slug.as_str()),
                 request.server_name.as_str(),
                 connector_id,
                 /*link_id*/ None,
@@ -1137,10 +1159,10 @@ async fn review_guardian_mcp_elicitation(
 
         let approvals_reviewer = crate::connectors::mcp_approvals_reviewer_from_layers(
             &mcp_config.config_layer_stack,
-            step_settings
+            review_context
                 .mcp_approvals_reviewer_override
                 .unwrap_or(mcp_config.approvals_reviewer),
-            Some(turn_context.model_info().slug.as_str()),
+            Some(review_context.model_info.slug.as_str()),
             request.server_name.as_str(),
             elicitation_connector_id(&request.elicitation),
             /*link_id*/ None,
@@ -1181,7 +1203,7 @@ async fn review_guardian_mcp_elicitation(
     let declined_reason = guardian_request.request.as_ref().err().cloned();
     let decision = crate::guardian::decide_approval(
         session,
-        review_context,
+        review_context.clone(),
         crate::guardian::new_guardian_review_id(),
         guardian_request,
         crate::tools::sandboxing::ApprovalRequestReasons {
@@ -1204,7 +1226,7 @@ async fn review_guardian_mcp_elicitation(
                 "declining Guardian MCP elicitation before review");
             return mcp_elicitation_decline_without_message();
         }
-        mcp_elicitation_response_from_guardian_decision(decision, turn_context.model_info())
+        mcp_elicitation_response_from_guardian_decision(decision, &review_context.model_info)
     }))
 }
 

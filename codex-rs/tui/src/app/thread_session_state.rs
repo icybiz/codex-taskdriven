@@ -81,6 +81,7 @@ impl App {
             if session.thread_id != thread_id {
                 // `thread/read` does not include all thread settings, so do not carry
                 // thread-scoped state from the currently active session.
+                session.active_model = None;
                 session.collaboration_mode = None;
                 session.daybreak_enabled = false;
             }
@@ -89,11 +90,13 @@ impl App {
             ThreadSessionState {
                 daybreak_enabled: false,
                 windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
+                active_model: None,
                 thread_id,
                 forked_from_id: None,
                 fork_parent_title: None,
                 thread_name: None,
                 model: self.chat_widget.current_model().to_string(),
+                model_routing: Default::default(),
                 model_provider_id: self.config.model_provider_id.clone(),
                 service_tier: self.chat_widget.current_service_tier().map(str::to_string),
                 approval_policy: AskForApproval::from(
@@ -107,6 +110,7 @@ impl App {
                 instruction_source_paths: Vec::new(),
                 reasoning_effort: self.chat_widget.current_reasoning_effort(),
                 collaboration_mode: None,
+                personality: None,
                 message_history: None,
                 network_proxy: None,
                 rollout_path: thread.path.clone(),
@@ -173,6 +177,9 @@ mod tests {
 
     fn test_thread_session(thread_id: ThreadId, cwd: PathBuf) -> ThreadSessionState {
         ThreadSessionState {
+            active_model: None,
+            model_routing: Default::default(),
+            personality: None,
             daybreak_enabled: false,
             windows_sandbox_host: crate::app::WindowsSandboxHost::Local,
             thread_id,
@@ -206,6 +213,7 @@ mod tests {
             ThreadId::from_string("00000000-0000-0000-0000-000000000402").expect("valid thread");
         let main_session = test_thread_session(main_thread_id, test_path_buf("/tmp/main"));
         let side_session = ThreadSessionState {
+            active_model: None,
             approval_policy: AskForApproval::OnRequest,
             permission_profile: PermissionProfile::workspace_write(),
             ..test_thread_session(side_thread_id, test_path_buf("/tmp/side"))
@@ -254,6 +262,7 @@ mod tests {
             .await;
 
         let expected_main_session = ThreadSessionState {
+            active_model: None,
             approval_policy: AskForApproval::OnRequest,
             approvals_reviewer: ApprovalsReviewer::AutoReview,
             permission_profile: expected_permission_profile,
@@ -316,6 +325,7 @@ mod tests {
             },
         };
         let session = ThreadSessionState {
+            active_model: None,
             permission_profile: profile.clone(),
             ..test_thread_session(thread_id, test_path_buf("/tmp/main"))
         };
@@ -335,6 +345,7 @@ mod tests {
             .await;
 
         let expected_session = ThreadSessionState {
+            active_model: None,
             approval_policy: AskForApproval::OnRequest,
             permission_profile: profile,
             ..session
@@ -362,6 +373,7 @@ mod tests {
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000406").expect("valid thread");
         let session = ThreadSessionState {
+            active_model: None,
             service_tier: Some(ServiceTier::Fast.request_value().to_string()),
             ..test_thread_session(thread_id, test_path_buf("/tmp/main"))
         };
@@ -380,6 +392,7 @@ mod tests {
             .await;
 
         let expected_session = ThreadSessionState {
+            active_model: None,
             service_tier: None,
             ..test_thread_session(thread_id, test_path_buf("/tmp/main"))
         };
@@ -408,6 +421,7 @@ mod tests {
         let read_thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000405").expect("valid thread");
         let primary_session = ThreadSessionState {
+            active_model: None,
             permission_profile: PermissionProfile::workspace_write(),
             ..test_thread_session(primary_thread_id, test_path_buf("/tmp/primary"))
         };

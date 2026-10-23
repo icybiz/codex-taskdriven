@@ -14,6 +14,7 @@ use codex_protocol::protocol::ThreadSettingsAppliedEvent;
 use codex_protocol::protocol::ThreadSettingsOverrides;
 use codex_protocol::protocol::ThreadSettingsSnapshot;
 use codex_thread_store::ThreadStoreResult;
+use std::sync::Arc;
 use tokio::sync::SemaphorePermit;
 
 impl Session {
@@ -40,7 +41,10 @@ pub(super) async fn update(
     overrides: impl Into<WithTurnExtensionData<ThreadSettingsOverrides>>,
 ) -> ConstraintResult<ThreadSettingsSnapshot> {
     let updates = prepare_update(overrides, &session.services.selected_capability_roots);
+    let explicit_model_selection =
+        updates.step_settings.model.is_some() || updates.step_settings.collaboration_mode.is_some();
     let commit = session.update_settings(updates).await?;
+    disable_active_automatic_routing(session, explicit_model_selection, &commit.snapshot).await;
     let active_turn = session.active_turn.lock().await;
     // A registered running task retains its lineage so it can be recovered after a daemon
     // restart. Reservations and finishing turns have no interrupted work to continue.
@@ -83,6 +87,7 @@ pub(super) fn prepare_update(
     SessionSettingsUpdate {
         turn_extension_init,
         step_settings: StepSettingsUpdate {
+            model_routing: None,
             model,
             effort,
             collaboration_mode,
@@ -120,9 +125,42 @@ pub(super) async fn apply_update(
     updates: SessionSettingsUpdate,
 ) -> ConstraintResult<()> {
     let _settings_guard = acquire_persistence_lock(session).await;
+    let explicit_model_selection =
+        updates.step_settings.model.is_some() || updates.step_settings.collaboration_mode.is_some();
     let commit = session.update_settings(updates).await?;
+    disable_active_automatic_routing(session, explicit_model_selection, &commit.snapshot).await;
     emit_applied(session, submission_id, commit.snapshot).await;
     Ok(())
+}
+
+async fn disable_active_automatic_routing(
+    session: &Session,
+    explicit_model_selection: bool,
+    snapshot: &ThreadSettingsSnapshot,
+) {
+    if explicit_model_selection
+        && snapshot.collaboration_mode.settings.model_routing
+            == codex_protocol::config_types::ModelRouting::Fixed
+    {
+        // A fixed selection disables automatic routing immediately, while the
+        // selected model still follows ordinary future-turn semantics. Clone the
+        // current snapshot so its model, review authority and request preferences
+        // remain exact; already captured requests retain their original snapshot.
+        let active = session.active_turn.lock().await;
+        if let Some(task) = active.as_ref().and_then(|active| active.task.as_ref()) {
+            let current = task.turn_context.next_step_settings.load_full();
+            if current.selected.collaboration_mode.settings.model_routing
+                == codex_protocol::config_types::ModelRouting::TaskDriven
+            {
+                let mut fixed = (*current).clone();
+                Arc::make_mut(&mut fixed.selected)
+                    .collaboration_mode
+                    .settings
+                    .model_routing = codex_protocol::config_types::ModelRouting::Fixed;
+                task.turn_context.next_step_settings.store(Arc::new(fixed));
+            }
+        }
+    }
 }
 
 /// Emits the snapshot published by one successful settings update.

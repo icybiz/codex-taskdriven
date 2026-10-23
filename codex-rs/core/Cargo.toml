@@ -72,6 +72,7 @@ codex-agent-message-board-extension = { workspace = true }
 codex-message-board = { workspace = true }
 codex-agent-message-board-client = { workspace = true }
 codex-terminal-detection = { workspace = true }
+codex-taskdriven = { workspace = true }
 codex-thread-store = { workspace = true }
 codex-tools = { workspace = true }
 codex-utils-absolute-path = { workspace = true }

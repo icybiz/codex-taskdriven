@@ -289,6 +289,7 @@ fn thread_resume_params_accept_turns_page_bootstrap() {
 #[test]
 fn thread_resume_response_round_trips_initial_turns_page() {
     let response = ThreadResumeResponse {
+        active_model: None,
         disabled_plugin_ids: Vec::new(),
         thread: Thread {
             originator: Some("future_client".to_string()),
@@ -335,6 +336,7 @@ fn thread_resume_response_round_trips_initial_turns_page() {
             turns: Vec::new(),
         },
         model: "gpt-5".to_string(),
+        model_routing: Default::default(),
         model_provider: "openai".to_string(),
         service_tier: None,
         cwd: absolute_path("tmp"),
@@ -5250,6 +5252,7 @@ fn thread_settings_update_params_preserve_field_level_experimental_gates() {
         collaboration_mode: Some(codex_protocol::config_types::CollaborationMode {
             mode: codex_protocol::config_types::ModeKind::Plan,
             settings: codex_protocol::config_types::Settings {
+                model_routing: Default::default(),
                 model: "mock-model".to_string(),
                 reasoning_effort: None,
                 developer_instructions: None,

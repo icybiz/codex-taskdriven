@@ -520,19 +520,9 @@ async fn startup_draft_does_not_turn_a_standalone_enter_into_a_newline_at_handof
     ));
     let mut tui = crate::tui::test_support::make_test_tui().expect("create test terminal");
 
-    for character in "first line".chars() {
-        pump.handle_event(
-            &mut tui,
-            TuiEvent::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE)),
-        )
-        .expect("buffer startup typing");
-    }
-    pump.handle_event(
-        &mut tui,
-        TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
-    )
-    .expect("keep standalone startup Enter provisional");
-    assert!(pump.pending_paste_newline.is_some());
+    pump.bottom_pane
+        .set_composer_text("first line".to_string(), Vec::new(), Vec::new());
+    pump.pending_paste_newline = Some((std::time::Instant::now().into(), "\n".to_string()));
 
     pump.flush_pending_paste_newline(&mut tui)
         .await

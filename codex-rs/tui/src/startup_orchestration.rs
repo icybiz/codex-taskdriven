@@ -49,17 +49,6 @@ pub(super) async fn run_main_inner(
             ));
         }
     }
-    let (sandbox_mode, approval_policy) = if cli.dangerously_bypass_approvals_and_sandbox {
-        (
-            Some(SandboxMode::DangerFullAccess),
-            Some(AskForApproval::Never.to_core()),
-        )
-    } else {
-        (
-            cli.sandbox_mode.map(Into::<SandboxMode>::into),
-            cli.approval_policy.map(Into::into),
-        )
-    };
 
     cli.shared
         .take_auto_review_config_overrides(&mut cli.config_overrides);
@@ -85,6 +74,17 @@ pub(super) async fn run_main_inner(
             std::process::exit(1);
         }
     };
+    let explicit_plain_transcript = cli
+        .plain_transcript
+        .as_ref()
+        .map(AbsolutePathBuf::relative_to_current_dir)
+        .transpose()?;
+    if let Some(path) = explicit_plain_transcript.as_ref() {
+        cli_kv_overrides.push((
+            "plain_transcript".to_string(),
+            toml::Value::String(path.to_string_lossy().into_owned()),
+        ));
+    }
     if explicit_remote_endpoint.is_some()
         && cli_kv_overrides.iter().any(|(key, value)| {
             key == "sandbox_workspace_write.writable_roots"
@@ -175,6 +175,25 @@ pub(super) async fn run_main_inner(
             CloudConfigBundleLoader::default(),
         )
         .await;
+        let validation_hardened_settings =
+            hardened_user_settings(&validation_bootstrap.config_layer_stack)?;
+        let validation_use_yolo = should_use_yolo(
+            cli.dangerously_bypass_approvals_and_sandbox,
+            validation_hardened_settings.yolo.unwrap_or(false),
+            cli.sandbox_mode.is_some(),
+            cli.approval_policy.is_some(),
+        );
+        let (validation_sandbox_mode, validation_approval_policy) = if validation_use_yolo {
+            (
+                Some(SandboxMode::DangerFullAccess),
+                Some(AskForApproval::Never.to_core()),
+            )
+        } else {
+            (
+                cli.sandbox_mode.map(Into::<SandboxMode>::into),
+                cli.approval_policy.map(Into::into),
+            )
+        };
         let validation_cloud_config_bundle = if workload_identity_selected {
             cloud_config_bundle_for_app_server_target(
                 &validation_target,
@@ -190,8 +209,8 @@ pub(super) async fn run_main_inner(
             cli_kv_overrides.clone(),
             ConfigOverrides {
                 model: cli.model.clone(),
-                approval_policy,
-                sandbox_mode,
+                approval_policy: validation_approval_policy,
+                sandbox_mode: validation_sandbox_mode,
                 cwd: validation_cwd.map(AbsolutePathBuf::into_path_buf),
                 model_provider: cli
                     .oss
@@ -372,6 +391,32 @@ pub(super) async fn run_main_inner(
             .await?
     } else {
         Ok(())
+    };
+    // These settings can weaken execution isolation or redirect sensitive
+    // conversation content. Only explicit CLI input and user-owned config
+    // layers may control them; project and managed layers are ignored.
+    let trusted_hardened_settings = hardened_user_settings(&bootstrap_config.config_layer_stack)?;
+    let use_yolo = should_use_yolo(
+        cli.dangerously_bypass_approvals_and_sandbox,
+        trusted_hardened_settings.yolo.unwrap_or(false),
+        cli.sandbox_mode.is_some(),
+        cli.approval_policy.is_some(),
+    );
+    let (sandbox_mode, approval_policy) = if cli.shared.worktree {
+        (
+            Some(SandboxMode::WorkspaceWrite),
+            Some(AskForApproval::Never.to_core()),
+        )
+    } else if use_yolo {
+        (
+            Some(SandboxMode::DangerFullAccess),
+            Some(AskForApproval::Never.to_core()),
+        )
+    } else {
+        (
+            cli.sandbox_mode.map(Into::<SandboxMode>::into),
+            cli.approval_policy.map(Into::into),
+        )
     };
     let cloud_config_bundle = startup_draft
         .run_until(cloud_config_bundle_for_app_server_target(
@@ -949,6 +994,7 @@ pub(super) async fn run_main_inner(
         environment_manager,
         embedded_network_policy,
         managed_worktree.clone(),
+        explicit_plain_transcript,
         daemon_startup_warning,
         managed_daemon,
         launch_telemetry,

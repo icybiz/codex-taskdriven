@@ -152,7 +152,7 @@ pub(super) async fn try_submit_user_turn(
         }),
         explicit_profile.and_then(RuntimePermissionProfileOverride::turn_permission_profile),
     );
-    let response = app_server
+    let response = match app_server
         .turn_start(
             thread_id,
             client_user_message_id.clone(),
@@ -170,7 +170,32 @@ pub(super) async fn try_submit_user_turn(
             final_output_json_schema.clone(),
             cyber_access_program.map(Into::into),
         )
-        .await?;
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            // External app-server transport failures must reach the application-level
+            // reconnect state machine. It preserves an ambiguously delivered mutation
+            // without resubmitting it after reconnect. Server-side turn/start rejections
+            // still use the hardened local draft restoration below.
+            if matches!(
+                error.downcast_ref::<TypedRequestError>(),
+                Some(TypedRequestError::Transport { .. })
+            ) {
+                return Err(error);
+            }
+            let error_detail = format!("{error:#}");
+            tracing::error!(
+                thread_id = %thread_id,
+                error = %error_detail,
+                "turn/start failed without terminating the TUI"
+            );
+            app.chat_widget.on_turn_start_failed(format!(
+                "Unable to start the turn; the TUI session is still alive and the submitted draft was restored. Delivery may be ambiguous, so inspect the thread before submitting the draft again to avoid a duplicate turn. {error_detail}"
+            ));
+            return Ok(true);
+        }
+    };
     if app.active_thread_id == Some(thread_id) && app.chat_widget.thread_id() == Some(thread_id) {
         crate::startup_recovery::acknowledged(client_user_message_id);
         app.chat_widget

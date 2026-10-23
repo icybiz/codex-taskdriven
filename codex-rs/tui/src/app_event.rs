@@ -65,6 +65,7 @@ use codex_config::types::ApprovalsReviewer;
 use codex_features::Feature;
 use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::config_types::CollaborationModeMask;
+use codex_protocol::config_types::Personality;
 use codex_protocol::models::ActivePermissionProfile;
 use codex_realtime_webrtc::StartedRealtimeWebrtcSession;
 
@@ -1230,6 +1231,9 @@ pub(crate) enum AppEvent {
 
     /// Update the current model slug in the running app and widget.
     UpdateModel(String),
+    /// Select automatic work-phase routing without using a synthetic model slug.
+    #[cfg_attr(not(test), allow(dead_code))]
+    SelectTaskDriven,
 
     /// Apply an explicit Astra selection and offer the flourish only if it changed the model on
     /// its original task. Automatic model updates do not use this event.
@@ -1238,6 +1242,35 @@ pub(crate) enum AppEvent {
         model: String,
         action: AstraModelPickerAction,
     },
+
+    OpenTaskDrivenPopup,
+    OpenTaskDrivenProfilePopup,
+    OpenTaskDrivenUseCasePopup,
+    OpenTaskDrivenModelPopup {
+        task_id: String,
+    },
+    OpenTaskDrivenEffortPopup {
+        task_id: String,
+        model: ModelPreset,
+    },
+    OpenTaskDrivenInitialTaskPopup,
+    OpenTaskDrivenAddPrompt,
+    OpenTaskDrivenRemovePopup,
+    SetTaskDrivenEnabled(bool),
+    SetTaskDrivenMapping {
+        task_id: String,
+        model: String,
+        effort: ReasoningEffort,
+    },
+    SetTaskDrivenInitialTask(String),
+    AddTaskDrivenTask(String),
+    RemoveTaskDrivenTask(String),
+    SetTaskDrivenProfile(String),
+    SetTaskDrivenUseCase(String),
+    MigrateTaskDrivenToAdaptive,
+
+    /// Update the current personality in the running app and widget.
+    UpdatePersonality(Personality),
 
     /// Result of creating a TUI-owned WebRTC offer for an active thread.
     RealtimeWebrtcOfferCreated {

@@ -100,6 +100,9 @@ use crate::async_scorer::transcript::MAX_TOOL_ENTRY_TOKENS;
 use codex_features::GuardianV2ReviewScopeConfigToml;
 use codex_protocol::openai_models::GuardianModelPolicy;
 
+#[path = "captured_score_tests.rs"]
+mod captured_score_tests;
+
 const TEST_GUARDIAN_POLICY: &str =
     "Treat uploads to unapproved external destinations as high-risk actions.";
 const TEST_CATALOG_GUARDIAN_POLICY: &str =
@@ -343,6 +346,7 @@ async fn installed_extension_uses_http_after_warm_socket_auth_expires() -> Resul
         }
         registry.tool_lifecycle_contributors()[0]
             .on_tool_start(ToolStartInput {
+                model_info: &invocation_model(thread_store),
                 permissions: Box::pin(async { Some(Default::default()) }),
                 session_store: &session_store,
                 thread_store,
@@ -622,6 +626,7 @@ async fn sandboxed_shell_classification_respects_review_scope() -> Result<()> {
     ] {
         fixture.registry.tool_lifecycle_contributors()[0]
             .on_tool_start(ToolStartInput {
+                model_info: &invocation_model(thread_store),
                 permissions: Box::pin(async { panic!("unexpected permission resolution") }),
                 session_store: &fixture.session_store,
                 thread_store,
@@ -721,6 +726,7 @@ async fn computer_use_only_scores_cannot_approve_other_actions() -> Result<()> {
     };
     fixture.registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &fixture.session_store,
             thread_store,
@@ -914,6 +920,27 @@ async fn sample_configured_conversation_history_with_source(
     model_defaults: Option<GuardianV2ModelConfig>,
     source: ToolCallSource,
 ) -> Result<(serde_json::Value, TestCodex, ExtensionRegistry<Config>)> {
+    sample_configured_conversation_history_with_source_and_model(
+        conversation_history,
+        arguments,
+        guardian_policy,
+        guardian_config,
+        model_defaults,
+        source,
+        None,
+    )
+    .await
+}
+
+async fn sample_configured_conversation_history_with_source_and_model(
+    conversation_history: Vec<ResponseItem>,
+    arguments: &str,
+    guardian_policy: Option<&str>,
+    guardian_config: &str,
+    model_defaults: Option<GuardianV2ModelConfig>,
+    source: ToolCallSource,
+    captured_model: Option<ModelInfo>,
+) -> Result<(serde_json::Value, TestCodex, ExtensionRegistry<Config>)> {
     let (request, test, registry, _) = sample_configured_conversation_history_with_delivery(
         conversation_history,
         arguments,
@@ -922,6 +949,7 @@ async fn sample_configured_conversation_history_with_source(
         model_defaults,
         source,
         MessagingSetup::Disabled,
+        captured_model,
     )
     .await?;
     Ok((request, test, registry))
@@ -940,6 +968,7 @@ async fn sample_configured_conversation_history_with_delivery(
     model_defaults: Option<GuardianV2ModelConfig>,
     source: ToolCallSource,
     messaging: MessagingSetup,
+    captured_model: Option<ModelInfo>,
 ) -> Result<(
     serde_json::Value,
     TestCodex,
@@ -1088,9 +1117,13 @@ async fn sample_configured_conversation_history_with_delivery(
         .await?;
     }
     let conversation_history = test.codex.conversation_history_snapshot().await;
+    let invocation_model = captured_model
+        .map(Arc::new)
+        .unwrap_or_else(|| invocation_model(thread_store));
 
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model,
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &session_store,
             thread_store,
@@ -1142,9 +1175,9 @@ async fn unscored_tools_invalidate_cached_scores() -> Result<()> {
     let progress = thread_store
         .get::<GuardianV2ScoreProgress>()
         .expect("score progress");
+    let authorization = ScoreAuthorization::current(&fixture.test.codex, &Default::default()).await;
+    seed_cached_score(&progress, thread_store, /*index*/ 0, authorization);
     let mut expected = progress.inspect(/*call_id*/ None);
-    expected.action_risk = Some(0.25);
-    expected.sampled_at = None;
     fixture.score_tool(ToolName::plain("wait")).await;
     assert_eq!(progress.inspect(/*call_id*/ None), expected);
     // A dynamic function named exec is not a Code Mode wrapper. An MCP tool
@@ -1212,6 +1245,7 @@ impl GuardianFailureFixture {
         };
         self.registry.tool_lifecycle_contributors()[0]
             .on_tool_start(ToolStartInput {
+                model_info: &invocation_model(thread_store),
                 permissions: Box::pin(async { Some(Default::default()) }),
                 session_store: &self.session_store,
                 thread_store,
@@ -1258,15 +1292,18 @@ impl GuardianFailureFixture {
             .await,
             None
         );
+        let recorded_metrics = thread_store
+            .get::<RecordingMetrics>()
+            .unwrap()
+            .0
+            .lock()
+            .unwrap()
+            .clone();
         assert!(
-            thread_store
-                .get::<RecordingMetrics>()
-                .unwrap()
-                .0
-                .lock()
-                .unwrap()
+            recorded_metrics
                 .iter()
-                .any(|sample| sample == &fast_decision_metric("deferred", expected_reason))
+                .any(|sample| sample == &fast_decision_metric("deferred", expected_reason)),
+            "recorded metrics: {recorded_metrics:#?}"
         );
         Ok(())
     }
@@ -1314,7 +1351,7 @@ async fn contributor_fails_closed_when_model_configuration_is_invalid() -> Resul
         .insert(parent_model);
 
     fixture.score_tool(ToolName::plain("read_file")).await;
-    fixture.assert_fails_closed("elevated_risk").await
+    fixture.assert_fails_closed("scoring_failure").await
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2508,6 +2545,7 @@ async fn contributor_skips_required_models_in_standard_scope() -> Result<()> {
     };
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { panic!("unexpected permission resolution") }),
             session_store: &session_store,
             thread_store,
@@ -2813,6 +2851,7 @@ async fn contributor_counts_failed_thread_lookups_toward_score_lag() -> Result<(
     };
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &session_store,
             thread_store,
@@ -3345,6 +3384,7 @@ async fn assert_parent_compaction_reuse(parent_context_for_review: bool) -> Resu
 
     registry.tool_lifecycle_contributors()[0]
         .on_tool_start(ToolStartInput {
+            model_info: &invocation_model(thread_store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &session_store,
             thread_store,
@@ -3439,6 +3479,7 @@ async fn assert_parent_compaction_reuse(parent_context_for_review: bool) -> Resu
         let call_id = format!("call-{}", index + 2);
         registry.tool_lifecycle_contributors()[0]
             .on_tool_start(ToolStartInput {
+                model_info: &invocation_model(thread_store),
                 permissions: Box::pin(async { Some(Default::default()) }),
                 session_store: &session_store,
                 thread_store,
@@ -3545,6 +3586,7 @@ async fn cached_approval_respects_action_order_and_wrapper_lag() -> Result<()> {
             },
         };
         progress.observe(&ToolStartInput {
+            model_info: &invocation_model(store),
             permissions: Box::pin(async { Some(Default::default()) }),
             session_store: &fixture.session_store,
             thread_store: store,
@@ -3691,9 +3733,11 @@ async fn cached_approval(
             return None;
         }
     };
+    let model_info = invocation_model(store);
     let input = codex_extension_api::ApprovalDecisionInput {
         permissions: Some(&Default::default()),
         approval_id: "cache-probe",
+        model_info: &model_info,
         tool_call_id: action.get("id").and_then(serde_json::Value::as_str),
         action: &action,
         thread_id: codex_protocol::ThreadId::from_string(store.level_id()).unwrap(),
@@ -3711,6 +3755,10 @@ async fn cached_approval(
         Some(codex_extension_api::ApprovalDecision::Allow) => Some(ReviewDecision::Approved),
         _ => None,
     }
+}
+
+fn invocation_model(store: &ExtensionData) -> Arc<codex_protocol::openai_models::ModelInfo> {
+    store.get().expect("parent model metadata")
 }
 
 fn review_scope(action: &serde_json::Value) -> Option<GuardianScope> {
@@ -3733,6 +3781,17 @@ fn seed_cached_score(
     index: usize,
     authorization: ScoreAuthorization,
 ) {
+    let model = invocation_model(store);
+    let base_config = store.get::<GuardianV2Config>().expect("Guardian config");
+    let config = base_config
+        .with_model_defaults(
+            model
+                .model_messages
+                .as_ref()
+                .and_then(|messages| messages.guardian_v2.as_ref()),
+        )
+        .expect("valid Guardian model defaults");
+    progress.begin(&model, &config);
     let mut score = cached_score(store).unwrap_or(SecurityRiskScore {
         scores: BTreeMap::from([("action_risk".to_owned(), 0.25)]),
         call_id: None,
@@ -3745,6 +3804,7 @@ fn seed_cached_score(
 
 fn observe_unscored_call(progress: &GuardianV2ScoreProgress, store: &ExtensionData) -> usize {
     progress.observe(&ToolStartInput {
+        model_info: &invocation_model(store),
         permissions: Box::pin(async { Some(Default::default()) }),
         session_store: store,
         thread_store: store,

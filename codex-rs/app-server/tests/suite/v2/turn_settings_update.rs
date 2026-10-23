@@ -14,6 +14,7 @@ use codex_app_server_protocol::ThreadSettingsUpdatedNotification;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
 use codex_app_server_protocol::TurnCompletedNotification;
+use codex_app_server_protocol::TurnModelUpdatedNotification;
 use codex_app_server_protocol::TurnSettingsUpdateParams;
 use codex_app_server_protocol::TurnSettingsUpdateResponse;
 use codex_app_server_protocol::TurnSettingsUpdateStatus;
@@ -121,6 +122,19 @@ async fn settings_updates_report_results_and_preserve_the_target_on_saved_thread
         timeout(DEFAULT_TIMEOUT, app.read_response(request_id)).await??;
     assert!(!thread.ephemeral);
     let turn_id = start_turn(&mut app, &thread.id).await?;
+
+    let initial_model: TurnModelUpdatedNotification =
+        timeout(DEFAULT_TIMEOUT, app.read_notification("turn/model/updated")).await??;
+    assert_eq!(
+        initial_model,
+        TurnModelUpdatedNotification {
+            sequence: 1,
+            thread_id: thread.id.clone(),
+            turn_id: turn_id.clone(),
+            model: MODEL_A.to_string(),
+            effort: Some(ReasoningEffort::Low),
+        }
+    );
 
     let request = timeout(DEFAULT_TIMEOUT, app.read_stream_until_request_message()).await??;
     let ServerRequest::ToolRequestUserInput { request_id, params } = request else {
@@ -231,6 +245,22 @@ async fn settings_updates_report_results_and_preserve_the_target_on_saved_thread
         json!({"answers": {"continue": {"answers": ["Yes (Recommended)"]}}}),
     )
     .await?;
+    let active_model: TurnModelUpdatedNotification =
+        timeout(DEFAULT_TIMEOUT, app.read_notification("turn/model/updated")).await??;
+    let (model, effort) = match scenario {
+        UpdateScenario::Current => (MODEL_B, ReasoningEffort::High),
+        UpdateScenario::Future | UpdateScenario::Rejected => (MODEL_A, ReasoningEffort::Low),
+    };
+    assert_eq!(
+        active_model,
+        TurnModelUpdatedNotification {
+            sequence: 2,
+            thread_id: thread.id.clone(),
+            turn_id: turn_id.clone(),
+            model: model.to_string(),
+            effort: Some(effort),
+        }
+    );
     timeout(
         DEFAULT_TIMEOUT,
         app.read_stream_until_notification_message("turn/completed"),

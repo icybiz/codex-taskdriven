@@ -208,6 +208,7 @@ async fn run_snapshot_command_with_options(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -284,6 +285,7 @@ async fn run_tool_turn_on_harness(
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model: session_model,
                         reasoning_effort: None,
                         developer_instructions: None,
@@ -1148,6 +1150,7 @@ async fn unified_exec_snapshot_still_intercepts_apply_patch() -> Result<()> {
                 collaboration_mode: Some(CollaborationMode {
                     mode: ModeKind::Default,
                     settings: Settings {
+                        model_routing: Default::default(),
                         model,
                         reasoning_effort: None,
                         developer_instructions: None,
