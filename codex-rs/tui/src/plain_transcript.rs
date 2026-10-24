@@ -11,6 +11,7 @@ use std::path::PathBuf;
 pub(crate) enum PlainTranscriptRole {
     User,
     CodexCommentary,
+    CodexPartial,
     CodexFinal,
     CodexPlan,
     Codex,
@@ -21,6 +22,7 @@ impl PlainTranscriptRole {
         match self {
             Self::User => "USER",
             Self::CodexCommentary => "CODEX COMMENTARY",
+            Self::CodexPartial => "CODEX PARTIAL",
             Self::CodexFinal => "CODEX FINAL",
             Self::CodexPlan => "CODEX PLAN",
             Self::Codex => "CODEX",

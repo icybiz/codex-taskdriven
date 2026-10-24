@@ -15,6 +15,7 @@ fn transcript_is_append_only_plain_text_with_resume_metadata() -> io::Result<()>
         let mut transcript = PlainTranscript::open(&path)?;
         transcript.begin_session("thread-456", Path::new("/workspace"))?;
         transcript.append(PlainTranscriptRole::CodexCommentary, "continued")?;
+        transcript.append(PlainTranscriptRole::CodexPartial, "stable partial answer")?;
     }
 
     let text = std::fs::read_to_string(&path)?;
@@ -25,6 +26,8 @@ fn transcript_is_append_only_plain_text_with_resume_metadata() -> io::Result<()>
     assert!(text.contains("CODEX FINAL"));
     assert!(text.contains("thread_id: thread-456"));
     assert!(text.contains("continued"));
+    assert!(text.contains("CODEX PARTIAL"));
+    assert!(text.contains("stable partial answer"));
     assert!(!text.contains('\u{1b}'));
 
     #[cfg(unix)]

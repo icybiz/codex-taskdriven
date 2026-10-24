@@ -435,9 +435,10 @@ impl ChatWidget {
 
     /// Handle completion of an `AgentMessage` turn item.
     ///
-    /// Commentary completion sets a deferred restore flag so the status row
-    /// returns once stream queues are idle. Final-answer completion (or absent
-    /// phase for legacy models) clears the flag to preserve historical behavior.
+    /// Commentary and partial-answer completion set a deferred restore flag so
+    /// the status row returns once stream queues are idle. Final-answer
+    /// completion (or absent phase for legacy models) clears the flag to
+    /// preserve historical behavior.
     pub(super) fn on_agent_message_item_completed(
         &mut self,
         item: AgentMessageItem,
@@ -458,6 +459,7 @@ impl ChatWidget {
         if !from_replay && !parsed.visible_markdown.is_empty() {
             let role = match &item.phase {
                 Some(MessagePhase::Commentary) => PlainTranscriptRole::CodexCommentary,
+                Some(MessagePhase::PartialAnswer) => PlainTranscriptRole::CodexPartial,
                 Some(MessagePhase::FinalAnswer) => PlainTranscriptRole::CodexFinal,
                 None => PlainTranscriptRole::Codex,
             };
