@@ -1,5 +1,11 @@
 ## Contributing
 
+> This repository is an unofficial derivative maintained by icybiz. The
+> upstream policy below applies to submissions to `openai/codex`. Discussion
+> and reports about TaskDriven-specific behavior belong in this fork's issue
+> tracker. Do not submit this fork's code to OpenAI as a pull request unless
+> OpenAI changes its contribution policy or explicitly requests it.
+
 We welcome community contributions through the [openai/codex issue tracker](https://github.com/openai/codex/issues). Bug reports, root-cause analyses, and feature requests help us understand what matters most and improve Codex.
 
 **We do not accept external code contributions or pull requests.**
