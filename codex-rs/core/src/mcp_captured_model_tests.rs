@@ -14,8 +14,7 @@ async fn mcp_review_binding_keeps_the_issuing_model_and_checks_server_and_turn()
     let retained = [("old-call", &old_step), ("new-call", &new_step)]
         .into_iter()
         .map(|(call_id, step)| {
-            session.register_mcp_tool_approval_metadata_for_step(
-                step,
+            session.register_mcp_tool_approval_metadata(
                 call_id,
                 &McpInvocation {
                     server: "node_repl".to_string(),
@@ -23,6 +22,7 @@ async fn mcp_review_binding_keeps_the_issuing_model_and_checks_server_and_turn()
                     arguments: None,
                 },
                 approval_metadata(None, None, None, None, None),
+                GuardianReviewContext::from(step),
             )
         })
         .collect::<Vec<_>>();
