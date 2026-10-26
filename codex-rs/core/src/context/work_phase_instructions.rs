@@ -86,9 +86,46 @@ impl ContextualUserFragment for WorkPhaseInstructions {
                 "Autonomous work-phase routing is disabled. All previously provided autonomous work-phase instructions no longer apply.",
             );
         }
-        input_text("These instructions replace all previously provided autonomous work-phase instructions. Autonomous work-phase routing is enabled by the user. Select the phase yourself whenever the nature of the work changes, including repeatedly within one user request. Do not ask the user to request or approve routine model switches.\n\n\
-         Use writing for prose, explanations, documentation and final answers; investigation for research, code reading, bug discovery and diagnosis; verification for running existing tests and interpreting their results. These phases use gpt-5.6-sol with xhigh reasoning. Use implementation for designing or changing program code, fixing bugs, implementing features, refactoring, and creating or modifying automated tests. This phase uses gpt-6-astra with max reasoning.\n\n\
-         Before performing work belonging to a different model, call set_work_phase directly as the only tool call in that response, then continue after its result. A successful switch takes effect on the next model request in this same thread; finish this response without additional text or tools. Do not write implementation code before handing off to Astra. After implementation, switch back before ordinary testing or prose. If a test exposes another required code change, switch to implementation again before fixing it. Running tools are not restarted by a switch. If switching is rejected, report the reason and do not silently perform that phase using the wrong model. This routing does not grant additional permissions or change approval requirements."
+        input_text("These instructions replace all previously provided autonomous work-phase instructions. Autonomous work-phase routing is enabled by the user. Select the phase yourself whenever the nature of the work changes, including repeatedly within one user request. Do not ask the user to request or approve routine phase switches.\n\n\
+         Use writing for prose, explanations, documentation and final answers; investigation for research, code reading, bug discovery and diagnosis; implementation for designing or changing program code, fixing bugs, implementing features, refactoring, and creating or modifying automated tests; and verification for running existing tests and interpreting their results. The active TaskDriven configuration, the taskdriven_routing instructions, and the set_work_phase tool description and result are authoritative for each phase's model and reasoning effort. Do not assume fixed model names or reasoning efforts.\n\n\
+         Before performing work belonging to a different phase, call set_work_phase directly as the only tool call in that response, then continue after its result. A successful switch takes effect on the next model request in this same thread; finish this response without additional text or tools. Do not perform the new phase before that handoff. Never reject or override a successful route merely because it differs from a model or effort named in older instructions. After implementation, switch phase before ordinary testing or prose. If a test exposes another required code change, switch to implementation again before fixing it. Running tools are not restarted by a switch. If switching is rejected, report the reason and do not silently perform that phase using another route. This routing does not grant additional permissions or change approval requirements."
             .to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body_text(instructions: &WorkPhaseInstructions) -> String {
+        let ContentItem::InputText { text } = instructions.body() else {
+            panic!("work-phase instructions must render as input text");
+        };
+        text
+    }
+
+    #[test]
+    fn enabled_instructions_defer_routes_to_materialized_taskdriven_config() {
+        let text = body_text(&WorkPhaseInstructions::new(true));
+
+        assert!(text.contains("active TaskDriven configuration"));
+        assert!(text.contains("set_work_phase tool description and result are authoritative"));
+        assert!(text.contains("Do not assume fixed model names or reasoning efforts"));
+        assert!(text.contains("Before performing work belonging to a different phase"));
+        assert!(text.contains("Never reject or override a successful route"));
+        for stale_route in ["gpt-", "Astra", "Sol", "xhigh", "max reasoning"] {
+            assert!(
+                !text.contains(stale_route),
+                "instructions must not hard-code stale route {stale_route:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn disabled_instructions_retire_previous_phase_guidance() {
+        let text = body_text(&WorkPhaseInstructions::new(false));
+
+        assert!(text.contains("routing is disabled"));
+        assert!(text.contains("instructions no longer apply"));
     }
 }
