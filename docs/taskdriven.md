@@ -96,6 +96,13 @@ control step. A successful switch takes effect on the next model request in
 the same thread. Codex records the actual model, rejects stale tools generated
 before the transition, and persists routing on resume.
 
+The active TaskDriven configuration, materialized `taskdriven_routing` block,
+and successful `set_work_phase` result determine each phase's model and effort.
+Generic phase instructions do not prescribe a model family or reasoning level.
+A valid route remains authoritative when it differs from older instructions
+retained in the conversation. Phase changes still require a control step when
+two phases happen to select the same model.
+
 TaskDriven fails closed: invalid configuration cannot be enabled, unavailable
 models or reasoning levels prevent activation, and rejected transitions are
 reported instead of silently using the wrong route. Selecting an ordinary

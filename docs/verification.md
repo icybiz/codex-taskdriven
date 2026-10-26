@@ -1,6 +1,6 @@
 # Verification results
 
-The implementation commit `2dd04bae596531603a783da90b5cdd51bf07cbeb`
+The initial implementation commit `2dd04bae596531603a783da90b5cdd51bf07cbeb`
 was verified on Linux x86_64 before public-author metadata was rewritten. The
 public implementation commits retain the same source tree.
 
@@ -22,3 +22,26 @@ These are focused release gates, not every upstream test on every platform.
 The verified build targeted x86_64 Linux; no ARM artifact is claimed. Binary
 publication remains subject to the separate gate in
 [license compliance](license-compliance.md).
+
+## Maintenance update: 0.164.0-aicoder2.11
+
+Published fixes:
+
+- `14272272604bc2891fc83e3ed74efc8cf1f0af75`: model-neutral phase guidance
+  and focused routing regressions.
+- `11ac2a6605303ca2122f0f542edcfe8c8705dc02`: current MCP approval-metadata
+  API in the captured-model regression test.
+
+The source code matches the tested hardened revision
+`48a97f95216c68c5730a6e0401f656146a5ef63b`; publication documentation and
+public-author metadata differ. The two focused routing tests passed, and the
+x86_64 release build completed with zero compiler errors. Its existing
+17-warning set was unchanged.
+
+A resumed thread successfully selected the configured implementation route,
+then completed eleven regular phase transitions without the stale routing
+conflict. A second long-running thread retained its history and phase mappings
+after the update. Fast remained off in both sessions.
+
+This resolves [issue #1](https://github.com/icybiz/codex-taskdriven/issues/1).
+Binary redistribution remains subject to the separate license gate above.
