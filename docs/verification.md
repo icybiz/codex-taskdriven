@@ -46,7 +46,7 @@ after the update. Fast remained off in both sessions.
 This resolves [issue #1](https://github.com/icybiz/codex-taskdriven/issues/1).
 Binary redistribution remains subject to the separate license gate above.
 
-## Maintenance update: session isolation (2026-10-29)
+## Maintenance update: 0.164.0-aicoder2.12 (2026-10-29)
 
 The TaskDriven source fix separates per-thread activation from shared route
 storage. It removes model-picker toggle writes to the shared activation flag,
@@ -67,7 +67,25 @@ Verified on Linux x86_64 using the pinned toolchain, without paid model calls:
   tested implementation; publication-only documentation and author metadata
   are separate.
 
-This is a source-code fix, not a claim that existing installations have been
-updated. The corresponding x86_64 binary rebuild and controlled deployment
-are separate steps. Older running binaries retain the old behavior until
-they are upgraded. No ARM build or binary redistribution is claimed here.
+The published source fix is
+[`cfd122ec303d92ccf3d01dd1b0d86a06931ffc6a`](https://github.com/icybiz/codex-taskdriven/commit/cfd122ec303d92ccf3d01dd1b0d86a06931ffc6a).
+Its runtime code matches the internally tested and built revision
+`4b51f6da4d23337f3c277b9ef86216fc2e704c39`.
+
+The corresponding hardened x86_64 release was rebuilt in 4,977 seconds with
+zero compiler errors and no OOM events. The previous 17-warning set was
+unchanged. Both rebuilt binaries were checksum-verified after import, then
+passed local package smoke tests for the CLI/version, plain transcripts,
+code-mode host, and centrally managed self-update refusal. The release
+manifest records the 2 core, 21 TaskDriven, and 12 TUI test cases and the
+SHA-256 hashes of their logs.
+
+The locally verified packaged Codex SHA-256 is
+`435ff8b12b22840026598c9d11ac1fa9ccd3e51f4db9ee050c45652e35af591f`.
+This resolves [issue #2](https://github.com/icybiz/codex-taskdriven/issues/2).
+
+This is not a claim that existing running installations have been updated.
+Older running binaries retain the old behavior until they are upgraded; no
+session was restarted as part of this release build. No ARM build or binary
+redistribution is claimed here. Binary publication remains subject to the
+separate license gate above.
