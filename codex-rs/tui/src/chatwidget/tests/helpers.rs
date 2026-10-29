@@ -218,10 +218,32 @@ pub(super) async fn make_chatwidget_manual_with_auth(
     tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
     tokio::sync::mpsc::UnboundedReceiver<Op>,
 ) {
+    boxed_future!(make_chatwidget_manual_with_config(
+        model_override,
+        has_chatgpt_account,
+        has_codex_backend_auth,
+        frame_requester,
+        |_| {},
+    ))
+    .await
+}
+
+pub(super) async fn make_chatwidget_manual_with_config(
+    model_override: Option<&str>,
+    has_chatgpt_account: bool,
+    has_codex_backend_auth: bool,
+    frame_requester: FrameRequester,
+    configure: impl FnOnce(&mut Config),
+) -> (
+    ChatWidget,
+    tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
+    tokio::sync::mpsc::UnboundedReceiver<Op>,
+) {
     let (tx_raw, rx) = unbounded_channel::<AppEvent>();
     let app_event_tx = AppEventSender::new(tx_raw);
     let (op_tx, op_rx) = unbounded_channel::<Op>();
     let (codex_home, mut cfg) = test_config().await;
+    configure(&mut cfg);
     let resolved_model = model_override
         .map(str::to_owned)
         .unwrap_or_else(|| get_model_offline_for_tests(cfg.model.as_deref()));
@@ -259,7 +281,10 @@ pub(super) async fn make_chatwidget_manual_with_auth(
     widget.windows_sandbox_config.requirements = Some(None);
     widget.transcript.active_cell = None;
     widget.transcript.active_cell_revision = 0;
-    widget.set_model(&resolved_model);
+    // Preserve automatic routing initialized by the constructor under test.
+    if !widget.taskdriven_selected() {
+        widget.set_model(&resolved_model);
+    }
     (widget, rx, op_rx)
 }
 

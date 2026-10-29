@@ -652,9 +652,8 @@ impl ChatWidget {
         {
             return Err("Automatic TaskDriven routing is unavailable in this session".to_string());
         }
-        let mut document = self.load_taskdriven_document()?;
-        document.set_enabled(enabled);
         let runtime = if enabled {
+            let document = self.load_taskdriven_document()?;
             let presets = self.model_catalog.try_list_models().map_err(|_| {
                 "Models are being updated; try enabling TaskDriven again in a moment".to_string()
             })?;
@@ -662,9 +661,8 @@ impl ChatWidget {
         } else {
             None
         };
-        document
-            .save(self.config.codex_home.as_path())
-            .map_err(|error| error.to_string())?;
+        // Activation belongs to the thread. Persist only routing/profile edits,
+        // never a model-picker toggle that would affect other sessions.
         let mut mode = self.effective_collaboration_mode();
         if enabled {
             let config = runtime.expect("enabled TaskDriven has a materialized configuration");
@@ -919,7 +917,7 @@ impl ChatWidget {
             .map(TaskDrivenModel::from_preset)
             .collect::<Vec<_>>();
         let config = document
-            .materialize(&models)
+            .materialize_for_session(&models)
             .map_err(|error| error.to_string())?;
         Self::validate_taskdriven_catalog(&config, presets)?;
         Ok(config)

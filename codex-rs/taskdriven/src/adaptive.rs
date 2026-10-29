@@ -440,6 +440,18 @@ impl TaskDrivenConfigDocument {
         }
     }
 
+    /// Resolves routes for a session that has explicitly selected TaskDriven.
+    /// The shared document's legacy startup flag must not disable that session.
+    /// This does not change the document or persist session activation.
+    pub fn materialize_for_session(
+        &self,
+        models: &[crate::TaskDrivenModel],
+    ) -> Result<TaskDrivenConfig, TaskDrivenConfigError> {
+        let mut config = self.materialize(models)?;
+        config.enabled = true;
+        Ok(config)
+    }
+
     pub fn migrate_v1_to_adaptive(codex_home: &Path) -> Result<Self, TaskDrivenConfigError> {
         let path = Self::path(codex_home);
         let contents = fs::read(&path).map_err(|source| TaskDrivenConfigError::Read {

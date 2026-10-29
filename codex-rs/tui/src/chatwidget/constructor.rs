@@ -77,13 +77,15 @@ impl ChatWidget {
             mode: ModeKind::Default,
             settings: fallback_default,
         };
-        if let Ok(document) =
-            codex_taskdriven::TaskDrivenConfigDocument::load(config.codex_home.as_path())
-            && document.enabled()
+        // The selected routing mode is authoritative; the shared route file
+        // must neither opt a fixed session in nor disable a TaskDriven session.
+        if config.model_routing == codex_protocol::config_types::ModelRouting::TaskDriven
+            && let Ok(document) =
+                codex_taskdriven::TaskDrivenConfigDocument::load(config.codex_home.as_path())
             && config.features.enabled(Feature::AutonomousWorkPhase)
             && config.features.enabled(Feature::StepModelSwitching)
             && let Ok(presets) = model_catalog.try_list_models()
-            && let Ok(taskdriven) = document.materialize(
+            && let Ok(taskdriven) = document.materialize_for_session(
                 &presets
                     .iter()
                     .map(codex_taskdriven::TaskDrivenModel::from_preset)

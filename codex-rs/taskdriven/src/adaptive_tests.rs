@@ -161,6 +161,41 @@ fn document_load_defaults_to_adaptive_v2_and_saves_atomically() {
 }
 
 #[test]
+fn session_activation_does_not_mutate_shared_v1_or_v2_defaults() {
+    let models = vec![TaskDrivenModel::new(
+        "gpt-6.1-sol",
+        ModelRole::Balanced,
+        ReasoningEffort::Medium,
+        vec![ReasoningEffort::Medium, ReasoningEffort::High],
+    )];
+    for mut document in [
+        TaskDrivenConfigDocument::V1(TaskDrivenConfig::default()),
+        TaskDrivenConfigDocument::V2(TaskDrivenConfigV2::adaptive_default()),
+    ] {
+        for enabled in [false, true] {
+            document.set_enabled(enabled);
+            let home = tempdir().unwrap();
+            document.save(home.path()).unwrap();
+            let original = std::fs::read(TaskDrivenConfigDocument::path(home.path())).unwrap();
+
+            let runtime = document.materialize_for_session(&models).unwrap();
+
+            assert!(runtime.enabled);
+            assert_eq!(document.enabled(), enabled);
+            assert_eq!(document.materialize(&models).unwrap().enabled, enabled);
+            assert_eq!(
+                std::fs::read(TaskDrivenConfigDocument::path(home.path())).unwrap(),
+                original
+            );
+            assert_eq!(
+                TaskDrivenConfigDocument::load(home.path()).unwrap(),
+                document
+            );
+        }
+    }
+}
+
+#[test]
 fn adaptive_document_materializes_against_live_model_candidates() {
     let models = vec![
         TaskDrivenModel::new(

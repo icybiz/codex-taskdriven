@@ -1393,8 +1393,7 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
             .collect::<Vec<_>>();
         if let Ok(document) = codex_taskdriven::TaskDrivenConfigDocument::load(
             turn_context.config.codex_home.as_path(),
-        ) && document.enabled()
-            && let Ok(config) = document.materialize(&taskdriven_models)
+        ) && let Ok(config) = document.materialize_for_session(&taskdriven_models)
         {
             registry
                 .add_with_exposure(WorkPhaseHandler::new(config), ToolExposure::DirectModelOnly);

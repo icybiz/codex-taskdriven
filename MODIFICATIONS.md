@@ -257,6 +257,7 @@ M	codex-rs/tui/src/chatwidget/tests/app_server.rs
 M	codex-rs/tui/src/chatwidget/tests/collaboration_catalog_tests.rs
 M	codex-rs/tui/src/chatwidget/tests/composer_submission.rs
 M	codex-rs/tui/src/chatwidget/tests/exec_flow.rs
+M	codex-rs/tui/src/chatwidget/tests/helpers.rs
 M	codex-rs/tui/src/chatwidget/tests/history_replay.rs
 M	codex-rs/tui/src/chatwidget/tests/permissions.rs
 M	codex-rs/tui/src/chatwidget/tests/plan_mode.rs

@@ -20,6 +20,14 @@ their exact fixed mappings until **Switch to adaptive Standard…** is selected;
 the migration first creates `taskdriven.toml.v1.bak` without overwriting a
 different existing backup.
 
+Activation belongs to the selected thread. Choosing a concrete model in one
+session does not disable TaskDriven in other sessions sharing `CODEX_HOME`.
+Shared profiles and phase-to-model routes remain editable in `taskdriven.toml`;
+its legacy `enabled` field is retained for file compatibility, not used as a
+global off switch for active threads. The selected `model_routing` mode is
+authoritative, including at startup. A fixed-mode session stays fixed even
+when the shared file contains `enabled = true`.
+
 ## Adaptive work styles
 
 | Work style | Emphasis |

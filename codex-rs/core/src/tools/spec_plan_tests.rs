@@ -1,3 +1,4 @@
+use crate::session::tests::update_selected_settings_for_test;
 use crate::session::tests::update_turn_settings_for_test;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use codex_model_provider_info::AMAZON_BEDROCK_PROVIDER_ID;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_protocol::AgentPath;
 use codex_protocol::ThreadId;
+use codex_protocol::config_types::ModelRouting;
 use codex_protocol::config_types::WebSearchMode;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
 use codex_protocol::error::CodexErrorDetails;
@@ -36,6 +38,7 @@ use codex_tools::ToolExposure;
 use codex_tools::ToolName;
 use codex_tools::ToolOutput;
 use codex_tools::ToolSpec;
+use codex_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -251,6 +254,142 @@ fn plan_with_model(
 
 async fn probe(configure_turn: impl FnOnce(&mut TurnContext)) -> ToolPlanProbe {
     probe_with(configure_turn, ToolPlanInputs::default()).await
+}
+
+fn set_taskdriven_routing(turn: &mut TurnContext, routing: ModelRouting) {
+    set_features(
+        turn,
+        &[Feature::AutonomousWorkPhase, Feature::StepModelSwitching],
+    );
+    turn.available_models = [
+        (
+            "gpt-5.6-sol",
+            codex_protocol::openai_models::ReasoningEffort::XHigh,
+        ),
+        (
+            "gpt-6-astra",
+            codex_protocol::openai_models::ReasoningEffort::Max,
+        ),
+    ]
+    .into_iter()
+    .map(|(model, effort)| {
+        let mut info = codex_models_manager::model_info::model_info_from_slug(model);
+        info.default_reasoning_level = Some(effort.clone());
+        info.supported_reasoning_levels =
+            vec![codex_protocol::openai_models::ReasoningEffortPreset {
+                effort,
+                description: String::new(),
+            }];
+        info.into()
+    })
+    .collect();
+    let runtime = codex_taskdriven::TaskDrivenConfig {
+        enabled: true,
+        ..Default::default()
+    };
+    update_turn_settings_for_test(turn, |settings| {
+        update_selected_settings_for_test(settings, |selected| {
+            selected.collaboration_mode.settings.model_routing = routing;
+            // Keep routing hints even for Fixed, to test that the mode wins.
+            selected.collaboration_mode.settings.developer_instructions =
+                Some(codex_taskdriven::enable_instructions(None, &runtime));
+        });
+    });
+}
+
+#[tokio::test]
+async fn taskdriven_shared_disable_keeps_iz_and_sa_tools_but_fr_stays_fixed() {
+    for mut document in [
+        codex_taskdriven::TaskDrivenConfigDocument::V1(Default::default()),
+        codex_taskdriven::TaskDrivenConfigDocument::V2(
+            codex_taskdriven::TaskDrivenConfigV2::from_v1(&Default::default()),
+        ),
+        codex_taskdriven::TaskDrivenConfigDocument::V2(
+            codex_taskdriven::TaskDrivenConfigV2::adaptive_default(),
+        ),
+    ] {
+        let home = tempfile::tempdir().unwrap();
+        document.set_enabled(true);
+        document.save(home.path()).unwrap();
+        let (_fr_session, mut fr) = make_session_and_context().await;
+        let (_iz_session, mut iz) = make_session_and_context().await;
+        let (_sa_session, mut sa) = make_session_and_context().await;
+        for turn in [&mut fr, &mut iz, &mut sa] {
+            Arc::make_mut(&mut turn.config).codex_home =
+                AbsolutePathBuf::try_from(home.path().to_path_buf()).unwrap();
+            set_taskdriven_routing(turn, ModelRouting::TaskDriven);
+            let probe = ToolPlanProbe::from_router(plan_with_model(
+                turn,
+                turn.model_info(),
+                ToolPlanInputs::default(),
+            ));
+            probe.assert_visible_contains(&["set_work_phase"]);
+        }
+
+        set_taskdriven_routing(&mut fr, ModelRouting::Fixed);
+        // Reproduce a legacy instance writing false to the shared route file.
+        // Even mixed-version operation must not disable the other threads.
+        document.set_enabled(false);
+        document.save(home.path()).unwrap();
+        let path = codex_taskdriven::TaskDrivenConfigDocument::path(home.path());
+        let original = std::fs::read(&path).unwrap();
+        let fixed = ToolPlanProbe::from_router(plan_with_model(
+            &fr,
+            fr.model_info(),
+            ToolPlanInputs::default(),
+        ));
+        fixed.assert_registered_lacks(&["set_work_phase"]);
+        for turn in [&iz, &sa] {
+            let probe = ToolPlanProbe::from_router(plan_with_model(
+                turn,
+                turn.model_info(),
+                ToolPlanInputs::default(),
+            ));
+            probe.assert_visible_contains(&["set_work_phase"]);
+            assert_eq!(
+                probe.exposure("set_work_phase"),
+                ToolExposure::DirectModelOnly
+            );
+        }
+        assert_eq!(std::fs::read(path).unwrap(), original);
+    }
+}
+
+#[tokio::test]
+async fn taskdriven_session_activation_preserves_feature_and_guardian_gates() {
+    for blocked in [
+        "autonomous_work_phase",
+        "step_model_switching",
+        "instructions",
+        "guardian",
+    ] {
+        let home = tempfile::tempdir().unwrap();
+        codex_taskdriven::TaskDrivenConfig::default()
+            .save(home.path())
+            .unwrap();
+        let result = probe(|turn| {
+            Arc::make_mut(&mut turn.config).codex_home =
+                AbsolutePathBuf::try_from(home.path().to_path_buf()).unwrap();
+            set_taskdriven_routing(turn, ModelRouting::TaskDriven);
+            match blocked {
+                "autonomous_work_phase" => set_feature(turn, Feature::AutonomousWorkPhase, false),
+                "step_model_switching" => set_feature(turn, Feature::StepModelSwitching, false),
+                "instructions" => update_turn_settings_for_test(turn, |settings| {
+                    update_selected_settings_for_test(settings, |selected| {
+                        selected.collaboration_mode.settings.developer_instructions = None;
+                    });
+                }),
+                "guardian" => {
+                    turn.session_source = SessionSource::Internal(
+                        codex_protocol::protocol::InternalSessionSource::Guardian,
+                    )
+                }
+                _ => unreachable!(),
+            }
+        })
+        .await;
+        result.assert_registered_lacks(&["set_work_phase"]);
+    }
 }
 
 fn set_feature(turn: &mut TurnContext, feature: Feature, enabled: bool) {

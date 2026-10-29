@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::boxed_future;
 use codex_protocol::config_types::ModelRouting;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::openai_models::ReasoningEffortPreset;
@@ -56,11 +57,13 @@ fn expected_status_line(model: &str) -> Option<String> {
 }
 
 #[tokio::test]
-async fn taskdriven_editor_renders_routes_and_enablement_updates_external_config() {
+async fn taskdriven_editor_renders_routes_and_enablement_preserves_external_config() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.6-sol")).await;
     enable_taskdriven_features(&mut chat);
     let config = codex_taskdriven::TaskDrivenConfig::default();
     config.save(chat.config.codex_home.as_path()).unwrap();
+    let path = codex_taskdriven::TaskDrivenConfig::path(chat.config.codex_home.as_path());
+    let original = std::fs::read(&path).unwrap();
 
     chat.open_taskdriven_popup();
     assert_chatwidget_snapshot!(
@@ -75,11 +78,131 @@ async fn taskdriven_editor_renders_routes_and_enablement_updates_external_config
     assert!(codex_taskdriven::instructions_are_enabled(
         mode.settings.developer_instructions.as_deref()
     ));
-    assert!(
-        codex_taskdriven::TaskDrivenConfig::load(chat.config.codex_home.as_path())
-            .unwrap()
-            .enabled
-    );
+    assert_eq!(std::fs::read(path).unwrap(), original);
+}
+
+#[tokio::test]
+async fn taskdriven_startup_follows_selected_routing_not_shared_activation() {
+    for routing in [ModelRouting::Fixed, ModelRouting::TaskDriven] {
+        for shared_enabled in [false, true] {
+            let (chat, _rx, _op_rx) = boxed_future!(helpers::make_chatwidget_manual_with_config(
+                Some("gpt-5.6-sol"),
+                false,
+                false,
+                FrameRequester::test_dummy(),
+                |config| {
+                    config.model_routing = routing;
+                    config
+                        .features
+                        .enable(Feature::AutonomousWorkPhase)
+                        .unwrap();
+                    config.features.enable(Feature::StepModelSwitching).unwrap();
+                    codex_taskdriven::TaskDrivenConfig {
+                        enabled: shared_enabled,
+                        ..Default::default()
+                    }
+                    .save(config.codex_home.as_path())
+                    .unwrap();
+                },
+            ))
+            .await;
+
+            assert_eq!(
+                chat.effective_collaboration_mode().settings.model_routing,
+                routing
+            );
+            assert_eq!(
+                codex_taskdriven::instructions_are_enabled(
+                    chat.effective_collaboration_mode()
+                        .settings
+                        .developer_instructions
+                        .as_deref()
+                ),
+                routing == ModelRouting::TaskDriven
+            );
+            assert_eq!(
+                codex_taskdriven::TaskDrivenConfigDocument::load(chat.config.codex_home.as_path())
+                    .unwrap()
+                    .enabled(),
+                shared_enabled
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn taskdriven_fr_fixed_selection_does_not_disable_iz_or_sa_with_shared_home() {
+    for mut document in [
+        codex_taskdriven::TaskDrivenConfigDocument::V1(Default::default()),
+        codex_taskdriven::TaskDrivenConfigDocument::V2(
+            codex_taskdriven::TaskDrivenConfigV2::adaptive_default(),
+        ),
+    ] {
+        for enabled in [false, true] {
+            let (mut fr, _fr_rx, _fr_op_rx) =
+                boxed_future!(make_chatwidget_manual(Some("gpt-5.6-sol"))).await;
+            let (mut iz, _iz_rx, _iz_op_rx) =
+                boxed_future!(make_chatwidget_manual(Some("gpt-5.6-sol"))).await;
+            let (mut sa, _sa_rx, _sa_op_rx) =
+                boxed_future!(make_chatwidget_manual(Some("gpt-5.6-sol"))).await;
+            iz.config.codex_home = fr.config.codex_home.clone();
+            sa.config.codex_home = fr.config.codex_home.clone();
+            document.set_enabled(enabled);
+            document.save(fr.config.codex_home.as_path()).unwrap();
+            let path =
+                codex_taskdriven::TaskDrivenConfigDocument::path(fr.config.codex_home.as_path());
+            let original = std::fs::read(&path).unwrap();
+            for chat in [&mut fr, &mut iz, &mut sa] {
+                enable_taskdriven_features(chat);
+                let mode = chat.set_taskdriven_enabled(true).unwrap();
+                chat.set_effective_collaboration_mode(mode);
+            }
+
+            let iz_before = iz.effective_collaboration_mode();
+            let sa_before = sa.effective_collaboration_mode();
+            let fixed = fr.set_taskdriven_enabled(false).unwrap();
+            fr.set_effective_collaboration_mode(fixed);
+            fr.set_model("gpt-6.1-sol");
+
+            assert!(!fr.taskdriven_selected());
+            assert!(!codex_taskdriven::instructions_are_enabled(
+                fr.effective_collaboration_mode()
+                    .settings
+                    .developer_instructions
+                    .as_deref()
+            ));
+            assert_eq!(iz.effective_collaboration_mode(), iz_before);
+            assert_eq!(sa.effective_collaboration_mode(), sa_before);
+            for chat in [&iz, &sa] {
+                assert!(chat.taskdriven_selected());
+                assert!(codex_taskdriven::instructions_are_enabled(
+                    chat.effective_collaboration_mode()
+                        .settings
+                        .developer_instructions
+                        .as_deref()
+                ));
+                let mode = chat.set_taskdriven_enabled(true).unwrap();
+                assert_eq!(mode.settings.model_routing, ModelRouting::TaskDriven);
+            }
+            assert_eq!(std::fs::read(path).unwrap(), original);
+        }
+    }
+}
+
+#[tokio::test]
+async fn taskdriven_can_be_disabled_even_if_shared_routes_are_invalid() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.6-sol")).await;
+    enable_taskdriven(&mut chat);
+    let path = codex_taskdriven::TaskDrivenConfigDocument::path(chat.config.codex_home.as_path());
+    std::fs::write(&path, "invalid = [").unwrap();
+
+    let mode = chat.set_taskdriven_enabled(false).unwrap();
+
+    assert_eq!(mode.settings.model_routing, ModelRouting::Fixed);
+    assert!(!codex_taskdriven::instructions_are_enabled(
+        mode.settings.developer_instructions.as_deref()
+    ));
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "invalid = [");
 }
 
 #[tokio::test]
@@ -131,20 +254,38 @@ async fn adaptive_v2_can_be_enabled_and_edited_from_model_settings() {
     let updated = chat
         .set_taskdriven_profile("builtin:economy@1".to_string())
         .unwrap();
-    assert!(updated.is_some());
-    chat.set_taskdriven_use_case("web_app".to_string()).unwrap();
-    chat.set_taskdriven_mapping(
-        "implementation",
-        "gpt-6-astra".to_string(),
-        ReasoningEffortConfig::High,
-    )
-    .unwrap();
+    let profile_mode = updated.unwrap();
+    assert!(codex_taskdriven::instructions_are_enabled(
+        profile_mode.settings.developer_instructions.as_deref()
+    ));
+    let use_case_mode = chat
+        .set_taskdriven_use_case("web_app".to_string())
+        .unwrap()
+        .unwrap();
+    assert!(codex_taskdriven::instructions_are_enabled(
+        use_case_mode.settings.developer_instructions.as_deref()
+    ));
+    let mapping_mode = chat
+        .set_taskdriven_mapping(
+            "implementation",
+            "gpt-6-astra".to_string(),
+            ReasoningEffortConfig::High,
+        )
+        .unwrap()
+        .unwrap();
+    assert!(codex_taskdriven::instructions_are_enabled(
+        mapping_mode.settings.developer_instructions.as_deref()
+    ));
 
     let document =
         codex_taskdriven::TaskDrivenConfigDocument::load(chat.config.codex_home.as_path()).unwrap();
     let codex_taskdriven::TaskDrivenConfigDocument::V2(config) = document else {
         panic!("adaptive editor must preserve v2")
     };
+    assert!(
+        !config.enabled,
+        "profile edits must preserve the shared activation flag"
+    );
     let adaptive = config.adaptive.unwrap();
     assert_eq!(adaptive.profile, "builtin:economy@1");
     assert_eq!(adaptive.use_case, "web_app");
@@ -231,6 +372,11 @@ async fn taskdriven_is_selected_in_the_picker_and_never_in_the_footer() {
 #[tokio::test]
 async fn taskdriven_editor_remains_available_to_repair_an_unsupported_route() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.6-sol")).await;
+    // Pin explicit routes: the default adaptive document can validly fall back
+    // to Sol when Astra is absent, which is not an unsupported-route case.
+    codex_taskdriven::TaskDrivenConfig::default()
+        .save(chat.config.codex_home.as_path())
+        .unwrap();
     let choices = presets(&chat);
     assert!(chat.taskdriven_selection_item(&choices).is_none());
     enable_taskdriven_features(&mut chat);
